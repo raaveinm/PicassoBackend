@@ -1,18 +1,35 @@
-#include <iostream>
+#include "oatpp/web/server/HttpConnectionHandler.hpp"
 
-// TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
+#include "oatpp/network/Server.hpp"
+#include "oatpp/network/tcp/server/ConnectionProvider.hpp"
+#include "oatpp/parser/json/mapping/ObjectMapper.hpp"
+
+
+import test;
+
+
+void run() {
+    auto objectMapper = oatpp::parser::json::mapping::ObjectMapper::createShared();
+    /* Create Router for HTTP requests routing */
+    const auto router = oatpp::web::server::HttpRouter::createShared();
+    // ROUTERS
+    router->addController(std::make_shared<endpoints::EndpointController>(objectMapper));
+    /* Create HTTP connection handler with router */
+    const auto connectionHandler = oatpp::web::server::HttpConnectionHandler::createShared(router);
+    /* Create TCP connection provider */
+    const auto connectionProvider = oatpp::network::tcp::server::ConnectionProvider::createShared({"localhost", 8000, oatpp::network::Address::IP_4});
+    /* Create server which takes provided TCP connections and passes them to HTTP connection handler */
+    oatpp::network::Server server(connectionProvider, connectionHandler);
+    /* Print info about server port */
+    OATPP_LOGI("Picasso-Test", "Server running on port %p", connectionProvider->getProperty("port").getData());
+
+    /* Run server */
+    server.run();
+}
 
 int main() {
-    // TIP Press <shortcut actionId="RenameElement"/> when your caret is at the <b>lang</b> variable name to see how CLion can help you rename it.
-
-    const auto lang = "C++";
-    std::cout << "Hello and welcome to " << lang << "!\n";
-
-    for (int i = 1; i <= 5; i++) {
-        // TIP Press <shortcut actionId="Debug"/> to start debugging your code. We have set one <icon src="AllIcons.Debugger.Db_set_breakpoint"/> breakpoint for you, but you can always add more by pressing <shortcut actionId="ToggleLineBreakpoint"/>.
-        std::cout << "i = " << i << std::endl;
-    }
-
+    oatpp::base::Environment::init();
+    run();
+    oatpp::base::Environment::destroy();
     return 0;
-    // TIP See CLion help at <a href="https://www.jetbrains.com/help/clion/">jetbrains.com/help/clion/</a>. Also, you can try interactive lessons for CLion by selecting 'Help | Learn IDE Features' from the main menu.
 }
