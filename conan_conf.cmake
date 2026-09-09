@@ -44,9 +44,10 @@ if(RUN_CONAN)
     endif()
 
     if(APPLE)
-        # C++20 module dependency scanning requires a real LLVM clang-scan-deps,
-        # which AppleClang does not ship. CMakeLists.txt requires CMAKE_CXX_COMPILER_ID
-        # to be "Clang" (e.g. Homebrew's llvm), not "AppleClang", so profile it as such.
+        # Profile Apple toolchains as plain "clang". This dates back to the C++20
+        # modules setup, which needed Homebrew's llvm for clang-scan-deps; the modules
+        # requirement is gone, but the profile is kept so existing Conan caches on
+        # macOS stay valid. Switch to "apple-clang" if that stops being worth it.
         if(CMAKE_CXX_COMPILER_VERSION)
             string(REGEX MATCH "^[0-9]+" CLANG_MAJOR_VERSION "${CMAKE_CXX_COMPILER_VERSION}")
         else()

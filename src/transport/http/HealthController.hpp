@@ -2,19 +2,17 @@
 // Created by Kirill "Raaveinm" on 9/7/26.
 //
 
-module;
+#pragma once
 
 #include "oatpp/web/server/api/ApiController.hpp"
 #include "oatpp/core/macro/codegen.hpp"
 
-export module test;
+#include OATPP_CODEGEN_BEGIN(ApiController)
 
-#include OATPP_CODEGEN_BEGIN(ApiController) // define api controller
-
-namespace endpoints {
-    export class EndpointController : public oatpp::web::server::api::ApiController {
+namespace picasso::transport::http {
+    class HealthController : public oatpp::web::server::api::ApiController {
     public:
-        explicit EndpointController(const std::shared_ptr<ObjectMapper>& objectMapper)
+        explicit HealthController(const std::shared_ptr<ObjectMapper>& objectMapper)
             : ApiController(objectMapper) {}
 
         ENDPOINT("GET", "/ping", ping) {
@@ -27,7 +25,7 @@ namespace endpoints {
         ENDPOINT("GET", "/", root) {
             const auto file = oatpp::String::loadFromFile(PICASSO_STATIC_ROOT "/index.html");
 
-            OATPP_ASSERT_HTTP(file != nullptr, Status::CODE_404, "index.html not found");
+            OATPP_ASSERT_HTTP(file != nullptr, Status::CODE_404, "index.html not found")
 
             const auto response = createResponse(Status::CODE_200, file);
             response->putHeader(Header::CONTENT_TYPE, "text/html; charset=utf-8");
@@ -35,6 +33,6 @@ namespace endpoints {
             return response;
         }
     };
-} // namespace endpoints
+} // namespace picasso::transport::http
 
 #include OATPP_CODEGEN_END(ApiController)
