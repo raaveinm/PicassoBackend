@@ -24,6 +24,7 @@ namespace picasso::dto {
         CallDecline,
         PeerJoined,
         CallLeave,
+        CallHangup,
 
         SdpOffer,
         SdpAnswer,

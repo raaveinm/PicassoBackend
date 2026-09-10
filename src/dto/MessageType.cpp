@@ -9,7 +9,7 @@
 
 namespace picasso::dto {
     namespace {
-        constexpr std::array<std::pair<MessageType, const char*>, 12> kWireNames{{
+        constexpr std::array<std::pair<MessageType, const char*>, 13> kWireNames{{
             {MessageType::Unknown, ""},
             {MessageType::ChatMessage, "chat_message"},
             {MessageType::ChatAck, "chat_ack"},
@@ -19,6 +19,7 @@ namespace picasso::dto {
             {MessageType::CallDecline, "call_decline"},
             {MessageType::PeerJoined, "peer_joined"},
             {MessageType::CallLeave, "call_leave"},
+            {MessageType::CallHangup, "call_hangup"},
             {MessageType::SdpOffer, "sdp_offer"},
             {MessageType::SdpAnswer, "sdp_answer"},
             {MessageType::IceCandidate, "ice_candidate"},

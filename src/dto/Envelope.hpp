@@ -83,6 +83,18 @@ namespace picasso::dto {
         DTO_FIELD(String, candidate);
     };
 
+    /*
+     * Directed like SdpDto/IceCandidateDto (addressed by toSteamId), no extra
+     * payload - the frame itself is the "hang up now" signal.
+     */
+    class CallHangupDto : public oatpp::DTO {
+        DTO_INIT(CallHangupDto, DTO)
+
+        DTO_FIELD(String, conversationId);
+        DTO_FIELD(String, toSteamId);
+        DTO_FIELD(String, fromSteamId);
+    };
+
     /* Every WS frame in either direction. `type` selects the populated payload. */
     class EnvelopeDto : public oatpp::DTO {
         DTO_INIT(EnvelopeDto, DTO)
@@ -96,6 +108,7 @@ namespace picasso::dto {
         DTO_FIELD(Object<CallSignalDto>, callSignal);
         DTO_FIELD(Object<SdpDto>, sdp);
         DTO_FIELD(Object<IceCandidateDto>, iceCandidate);
+        DTO_FIELD(Object<CallHangupDto>, callHangup);
     };
 } // namespace picasso::dto
 

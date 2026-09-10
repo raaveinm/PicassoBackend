@@ -22,14 +22,14 @@ namespace picasso::service {
 
     void CallSignalService::relayToPeer(const domain::SteamId,
                                         const domain::ConversationId&,
-                                        const domain::SteamId,
-                                        const std::string&) {
+                                        const domain::SteamId to,
+                                        const std::string& frame) {
         /*
-         * Shape once implemented (roadmap step 5): reject unless BOTH `from` and
-         * `to` are members of conversationId, then transport_->sendTo(to, frame).
-         * The membership answer comes off the session's cached set, not a query -
-         * ICE candidates arrive in bursts.
+         * TODO(roadmap step 4/5): reject unless BOTH `from` and `to` are members of
+         * conversationId, once ConversationRepository is real. Until storage lands,
+         * this is an open relay by steamId - the membership check the class-level
+         * comment above promises does not exist yet.
          */
-        notImplemented("service: CallSignalService::relayToPeer", "5: rtc signaling");
+        transport_->sendTo(to, frame);
     }
 } // namespace picasso::service

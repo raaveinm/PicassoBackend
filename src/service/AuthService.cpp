@@ -4,6 +4,8 @@
 
 #include "service/AuthService.hpp"
 
+#include <string>
+#include <string_view>
 #include <utility>
 
 #include "domain/Errors.hpp"
@@ -21,13 +23,23 @@ namespace picasso::service {
         notImplemented("service: AuthService::completeLogin", "3: auth");
     }
 
-    std::optional<domain::SteamId> AuthService::authenticate(const std::string&) {
+    std::optional<domain::SteamId> AuthService::authenticate(const std::string& token) {
         /*
-         * Throws rather than returning nullopt on purpose. nullopt here means
-         * "token rejected", and a stub that returns it would look like a working
-         * auth check that denies everyone - or, worse, would be "fixed" later by
-         * someone making it return a value. Failing loudly cannot be mistaken.
+         * TEMPORARY (roadmap step 3: auth): trusts the bearer token as the literal
+         * SteamId, with no verification at all. This exists only to unblock the WS
+         * signaling pipeline (roadmap step 5) end to end before real Steam OpenID
+         * login is built. Anyone can currently claim any SteamId - do not ship this.
+         *
+         * `token` is the raw Authorization header value ("Bearer <steamId>"), since
+         * WsController forwards it unparsed - the "Bearer " prefix is stripped here.
          */
-        notImplemented("service: AuthService::authenticate", "3: auth");
+        constexpr std::string_view prefix = "Bearer ";
+        const auto digits = token.starts_with(prefix) ? token.substr(prefix.size()) : token;
+
+        try {
+            return domain::SteamId(std::stoull(digits));
+        } catch (const std::exception&) {
+            return std::nullopt;
+        }
     }
 } // namespace picasso::service

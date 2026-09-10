@@ -7,7 +7,7 @@ Product context, terminology (Artist/Palette/Color/...), the multi-server archit
 
 > **Read "What exists today" before trusting anything else here.** Parts of this file describe an *agreed plan*, not shipped behaviour. Sections are labelled accordingly.
 
-Full reference documentation — module-by-module breakdown, every endpoint, the WS protocol, the error model — lives in [`docs/SERVER.md`](docs/SERVER.md). This file is the short version plus the build gotchas.
+Full reference documentation — module-by-module breakdown, every endpoint, the WS protocol, the error model — lives in [`docs/SERVER.md`](docs/SERVER.md). RTC requirements and the known gaps in the signaling protocol are in [`docs/WEBRTC.md`](docs/WEBRTC.md). This file is the short version plus the build gotchas.
 
 ## Status (2026-09-09)
 
@@ -93,7 +93,7 @@ These are the reasons the layering exists. If a change makes one of them a matte
 
 - **`senderSteamId` comes from the authenticated connection, never from the payload.** Enforced by splitting inbound and outbound DTOs: `ChatMessageInDto` has no sender field at all, so there is nothing to trust. `ChatService::submit(SteamId sender, ...)` takes the sender as a parameter, and the only caller that can supply it is `WsSession`, which had the identity baked into its constructor after token validation on upgrade. Omitting the check doesn't compile.
 - **SDP/ICE forwarding is membership-checked.** "Forward by `toSteamId` without parsing" taken literally makes the server an open relay: any authenticated user could push arbitrary payloads at any steamId, bypassing conversation membership entirely. `CallSignalService` must verify sender and target are both members of `conversationId`. ICE candidates arrive in bursts, so the user's conversation set is cached on the session at connect time rather than re-queried per candidate.
-- **One writer per socket.** Fan-out happens on another connection's thread, and oat++'s blocking `sendOneFrameText` is not safe to call concurrently on one socket. Each session owns an outbound queue with a single writer. Bounding that queue also gives backpressure: signaling frames may be dropped for a slow consumer, chat frames never.
+- **One writer per socket.** Fan-out happens on another connection's thread, and oat++'s blocking `sendOneFrameText` is not safe to call concurrently on one socket. Each session owns an outbound queue with a single writer. Bounding that queue also gives backpressure, but the drop policy has **three** tiers, not two: chat is never dropped (the server is SSOT), call control and SDP are never dropped (losing an `sdp_offer` kills session setup silently and nothing retries it), and only `ice_candidate` may be dropped — candidates are numerous, partly redundant, and more keep arriving. See [`docs/WEBRTC.md`](docs/WEBRTC.md) §3.5.
 
 Presence needs no external store — the multi-server design makes presence inherently instance-local, so `PresenceRegistry` is in-memory. No Redis.
 

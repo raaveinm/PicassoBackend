@@ -4,6 +4,8 @@
 
 #include "transport/ws/WsSession.hpp"
 
+#include <optional>
+#include <string>
 #include <utility>
 
 #include "oatpp/core/base/Environment.hpp"
@@ -11,6 +13,27 @@
 #include "dto/MessageType.hpp"
 
 namespace picasso::transport::ws {
+    namespace {
+        /* Parses a decimal id string off a DTO field. Never throws - nullopt on anything malformed. */
+        std::optional<domain::SteamId> parseSteamId(const oatpp::String& value) {
+            if (!value) return std::nullopt;
+            try {
+                return domain::SteamId(std::stoull(*value));
+            } catch (const std::exception&) {
+                return std::nullopt;
+            }
+        }
+
+        std::optional<domain::ConversationId> parseConversationId(const oatpp::String& value) {
+            if (!value) return std::nullopt;
+            try {
+                return domain::ConversationId(static_cast<std::int64_t>(std::stoll(*value)));
+            } catch (const std::exception&) {
+                return std::nullopt;
+            }
+        }
+    } // namespace
+
     WsSession::WsSession(const domain::SteamId steamId,
                          const oatpp::websocket::WebSocket* socket,
                          std::shared_ptr<EnvelopeCodec> codec,
@@ -78,11 +101,56 @@ namespace picasso::transport::ws {
                     break;
 
                 case dto::MessageType::CallInvite:
-                case dto::MessageType::SdpOffer:
-                case dto::MessageType::SdpAnswer:
-                case dto::MessageType::IceCandidate:
                     OATPP_LOGD("WsSession", "signaling frame from %lu", steamId_.value());
                     break;
+
+                case dto::MessageType::SdpOffer:
+                case dto::MessageType::SdpAnswer: {
+                    const auto& sdp = envelope->sdp;
+                    const auto to = sdp ? parseSteamId(sdp->toSteamId) : std::nullopt;
+                    const auto conversationId = sdp ? parseConversationId(sdp->conversationId) : std::nullopt;
+                    if (!sdp || !to || !conversationId) {
+                        OATPP_LOGD("WsSession", "dropping malformed sdp frame from %lu", steamId_.value());
+                        break;
+                    }
+                    /* fromSteamId is server-stamped, not trusted from the client. */
+                    sdp->fromSteamId = oatpp::String(std::to_string(steamId_.value()).c_str());
+                    auto outEnvelope = EnvelopeCodec::envelopeOf(type);
+                    outEnvelope->sdp = sdp;
+                    services_.callSignal->relayToPeer(steamId_, *conversationId, *to, codec_->encode(outEnvelope));
+                    break;
+                }
+
+                case dto::MessageType::IceCandidate: {
+                    const auto& candidate = envelope->iceCandidate;
+                    const auto to = candidate ? parseSteamId(candidate->toSteamId) : std::nullopt;
+                    const auto conversationId =
+                        candidate ? parseConversationId(candidate->conversationId) : std::nullopt;
+                    if (!candidate || !to || !conversationId) {
+                        OATPP_LOGD("WsSession", "dropping malformed ice frame from %lu", steamId_.value());
+                        break;
+                    }
+                    candidate->fromSteamId = oatpp::String(std::to_string(steamId_.value()).c_str());
+                    auto outEnvelope = EnvelopeCodec::envelopeOf(type);
+                    outEnvelope->iceCandidate = candidate;
+                    services_.callSignal->relayToPeer(steamId_, *conversationId, *to, codec_->encode(outEnvelope));
+                    break;
+                }
+
+                case dto::MessageType::CallHangup: {
+                    const auto& hangup = envelope->callHangup;
+                    const auto to = hangup ? parseSteamId(hangup->toSteamId) : std::nullopt;
+                    const auto conversationId = hangup ? parseConversationId(hangup->conversationId) : std::nullopt;
+                    if (!hangup || !to || !conversationId) {
+                        OATPP_LOGD("WsSession", "dropping malformed hangup frame from %lu", steamId_.value());
+                        break;
+                    }
+                    hangup->fromSteamId = oatpp::String(std::to_string(steamId_.value()).c_str());
+                    auto outEnvelope = EnvelopeCodec::envelopeOf(type);
+                    outEnvelope->callHangup = hangup;
+                    services_.callSignal->relayToPeer(steamId_, *conversationId, *to, codec_->encode(outEnvelope));
+                    break;
+                }
 
                 default:
                     OATPP_LOGD("WsSession", "unhandled frame type from %lu", steamId_.value());

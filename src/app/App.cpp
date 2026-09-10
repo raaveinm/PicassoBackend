@@ -52,10 +52,6 @@ namespace picasso::app {
             exitCode = 1;
         }
 
-        /*
-         * Reported after the components are gone, so a leak here is a real one rather
-         * than an artefact of objects still being alive.
-         */
         const auto leaked = oatpp::base::Environment::getObjectsCount();
         if (leaked != 0) {
             OATPP_LOGW("App", "%d oatpp objects still alive at shutdown", leaked);
