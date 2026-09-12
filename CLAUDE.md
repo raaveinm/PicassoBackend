@@ -9,9 +9,9 @@ Product context, terminology (Artist/Palette/Color/...), the multi-server archit
 
 Full reference documentation — module-by-module breakdown, every endpoint, the WS protocol, the error model — lives in [`docs/SERVER.md`](docs/SERVER.md). RTC requirements and the known gaps in the signaling protocol are in [`docs/WEBRTC.md`](docs/WEBRTC.md). This file is the short version plus the build gotchas.
 
-## Status (2026-09-09)
+## Status (2026-09-10)
 
-Skeleton in place: every module from the layout below exists, has its own CMake target, and compiles. What actually *works* end to end is small; what is wired but stubbed is large.
+Skeleton in place: every module from the layout below exists, has its own CMake target, and compiles. What actually *works* end to end is small; what is wired but stubbed is large. As of the `feat(rtc)` commit, the RTC signaling path (SDP/ICE/hangup relay) and WS auth both have real — but explicitly temporary and insecure — implementations, added specifically to unblock end-to-end testing ahead of real Steam auth and storage. **Do not deploy this build publicly**: see the callout in "Known WIP / gaps".
 
 Verified running:
 
@@ -19,11 +19,12 @@ Verified running:
 - `GET /ping` -> 200 `pong`, `X-Service-Status: Healthy`. `GET /` -> `static/index.html`.
 - A failed bind logs `cannot bind <addr>:<port>` and exits 1 instead of aborting.
 - Unimplemented endpoints answer a uniform 501 JSON naming the roadmap step, e.g. `GET /auth/steam/begin` -> `{"status":501,...,"message":"service: AuthService::beginLoginUrl is not implemented yet (roadmap step 3: auth)"}`.
-- `GET /ws` -> 401 without a bearer token; with one it reaches the auth stub and answers 501.
+- `GET /ws` -> 401 without a bearer token, and 401 if the token doesn't parse as a plain integer. With a numeric token (`Authorization: Bearer <anything-that-parses-as-uint64>`) it now succeeds — `AuthService::authenticate` treats the token as the literal steamId, no verification at all — and the upgrade completes with `101 Switching Protocols`.
+- Once upgraded, `sdp_offer` / `sdp_answer` / `ice_candidate` / `call_hangup` frames are relayed end to end to the target steamId's connection(s), with `fromSteamId` stamped by the server. `chat_message` and `call_invite` frames are parsed and logged only — no service call yet.
 
-Real logic, not stubs: `ConnectionHub` (presence + fan-out), `EnvelopeCodec`, `Config`, `ErrorHandler`, the WS session/socket lifecycle and identity plumbing.
+Real logic, not stubs: `ConnectionHub` (presence + fan-out), `EnvelopeCodec`, `Config`, `ErrorHandler`, the WS session/socket lifecycle and identity plumbing, `CallSignalService::relayToPeer` (temporary open relay, see below), `AuthService::authenticate` (temporary, insecure).
 
-Stubbed, throwing `std::logic_error` that surfaces as 501: every repository method, `storage::migrate`, all three services, `OpenIdVerifier`. Nothing touches Postgres - `oatpp-postgresql` is chosen but deliberately not yet in `conanfile.txt`.
+Still stubbed, throwing `std::logic_error` that surfaces as 501: every repository method, `storage::migrate`, `ChatService::submit`, `CallSignalService::invite`, `AuthService::beginLoginUrl`/`completeLogin`, `OpenIdVerifier`. Nothing touches Postgres - `oatpp-postgresql` is chosen but deliberately not yet in `conanfile.txt`.
 
 ## What this server actually does (per the client's multi-server design)
 
@@ -92,7 +93,7 @@ The first is enforced today; the other two are design intent that the skeleton i
 These are the reasons the layering exists. If a change makes one of them a matter of developer discipline rather than a matter of what compiles, the change is wrong.
 
 - **`senderSteamId` comes from the authenticated connection, never from the payload.** Enforced by splitting inbound and outbound DTOs: `ChatMessageInDto` has no sender field at all, so there is nothing to trust. `ChatService::submit(SteamId sender, ...)` takes the sender as a parameter, and the only caller that can supply it is `WsSession`, which had the identity baked into its constructor after token validation on upgrade. Omitting the check doesn't compile.
-- **SDP/ICE forwarding is membership-checked.** "Forward by `toSteamId` without parsing" taken literally makes the server an open relay: any authenticated user could push arbitrary payloads at any steamId, bypassing conversation membership entirely. `CallSignalService` must verify sender and target are both members of `conversationId`. ICE candidates arrive in bursts, so the user's conversation set is cached on the session at connect time rather than re-queried per candidate.
+- **SDP/ICE forwarding is membership-checked.** "Forward by `toSteamId` without parsing" taken literally makes the server an open relay: any authenticated user could push arbitrary payloads at any steamId, bypassing conversation membership entirely. `CallSignalService` must verify sender and target are both members of `conversationId`. ICE candidates arrive in bursts, so the user's conversation set is cached on the session at connect time rather than re-queried per candidate. **This is currently violated in code, not just unimplemented.** `CallSignalService::relayToPeer` forwards every `sdp_offer`/`sdp_answer`/`ice_candidate`/`call_hangup` by `toSteamId` with no membership check at all — a `TODO(roadmap step 4/5)` in `CallSignalService.cpp` says so explicitly. It's an open relay today, held together only by `AuthService::authenticate` also being a temporary stand-in (see "Status"). Both close together once storage (step 4) lands.
 - **One writer per socket.** Fan-out happens on another connection's thread, and oat++'s blocking `sendOneFrameText` is not safe to call concurrently on one socket. Each session owns an outbound queue with a single writer. Bounding that queue also gives backpressure, but the drop policy has **three** tiers, not two: chat is never dropped (the server is SSOT), call control and SDP are never dropped (losing an `sdp_offer` kills session setup silently and nothing retries it), and only `ice_candidate` may be dropped — candidates are numerous, partly redundant, and more keep arriving. See [`docs/WEBRTC.md`](docs/WEBRTC.md) §3.5.
 
 Presence needs no external store — the multi-server design makes presence inherently instance-local, so `PresenceRegistry` is in-memory. No Redis.
@@ -113,20 +114,21 @@ An earlier iteration used real modules (`.cppm`, `FILE_SET CXX_MODULES`). That i
 
 One finding worth keeping if anyone reconsiders: **oat++'s `ENUM(...)` macro cannot be exported from a module.** It expands to a file-scope `static` variable as an initializer trick, and C++20 forbids exporting an internal-linkage entity — a hard compiler error, not a style problem. Any other oat++ macro using the same trick will fail identically. With plain headers this restriction does not apply, so `ENUM(...)` is usable at the DTO boundary today. `MessageType` should still be a plain `enum class` in `domain/`, for the unrelated reason that `domain/` must not depend on oat++; convert at the DTO boundary.
 
-## Wire protocol (DTOs exist in `src/dto/`; no handler acts on them yet)
+## Wire protocol (DTOs exist in `src/dto/`; only the RTC relay frames have a handler so far)
 
 One WS connection per client per server (matching the client's multi-server design), carrying **both** chat and RTC signaling — every frame is an `EnvelopeDto`, `type` says which payload field is populated:
 
-| `type` | payload field | direction | meaning |
-|---|---|---|---|
-| `chat_message` | `chatMessage` (`ChatMessageInDto`) | client → server | new message; `localMessageId` is the client's outbox row id |
-| `chat_ack` | `chatAck` (`ChatAckDto`) | server → sender | "your message landed" — echoes `localMessageId` so the client can resolve its `PENDING` row, and carries the server-assigned `messageId` |
-| `call_invite` | `callInvite` (`CallInviteDto`) | client → server | "start/join a call in this conversation" |
-| `incoming_call` / `call_accept` / `call_decline` / `peer_joined` / `call_leave` | `callSignal` (`CallSignalDto`) | both directions | just `{conversationId, steamId}` notifications, direction/meaning differs by `type` |
-| `sdp_offer` / `sdp_answer` | `sdp` (`SdpDto`) | both, routed by `toSteamId` | opaque SDP text — server forwards without parsing, but *does* check membership |
-| `ice_candidate` | `iceCandidate` (`IceCandidateDto`) | both, routed by `toSteamId` | opaque ICE candidate — same: forwarded unparsed, membership still checked |
+| `type` | payload field | direction | meaning | `WsSession::dispatch` today |
+|---|---|---|---|---|
+| `chat_message` | `chatMessage` (`ChatMessageInDto`) | client → server | new message; `localMessageId` is the client's outbox row id | logged only, no service call (`ChatService::submit` still throws) |
+| `chat_ack` | `chatAck` (`ChatAckDto`) | server → sender | "your message landed" — echoes `localMessageId` so the client can resolve its `PENDING` row, and carries the server-assigned `messageId` | never produced yet |
+| `call_invite` | `callInvite` (`CallInviteDto`) | client → server | "start/join a call in this conversation" | logged only (`CallSignalService::invite` still throws) |
+| `incoming_call` / `call_accept` / `call_decline` / `peer_joined` / `call_leave` | `callSignal` (`CallSignalDto`) | both directions | just `{conversationId, steamId}` notifications, direction/meaning differs by `type` | falls to the `default:` case, logged as "unhandled frame type" |
+| `sdp_offer` / `sdp_answer` | `sdp` (`SdpDto`) | both, routed by `toSteamId` | opaque SDP text — server forwards without parsing; membership is **supposed to be** checked but currently is not (open relay, see "Structural invariants") | relayed via `CallSignalService::relayToPeer`, `fromSteamId` server-stamped |
+| `ice_candidate` | `iceCandidate` (`IceCandidateDto`) | both, routed by `toSteamId` | opaque ICE candidate — same: forwarded unparsed, membership check missing today | relayed, `fromSteamId` server-stamped |
+| `call_hangup` | `callHangup` (`CallHangupDto`) | both, routed by `toSteamId` | no payload beyond addressing — the frame itself is the hang-up signal | relayed, `fromSteamId` server-stamped |
 
-Inbound and outbound chat DTOs are deliberately different types — see "Structural invariants" above.
+Inbound and outbound chat DTOs are deliberately different types — see "Structural invariants" above. `EnvelopeDto` also carries an unused `chatMessageOut` field (`ChatMessageOutDto`) with no corresponding wire `type` yet — reserved for when `ChatService` fans a message out to other members, not wired to anything today.
 
 A missed call needs no durability treatment — if the target isn't online, it just doesn't connect. Chat messages do (see the client's outbox pattern in its own `CLAUDE.md`) — but durability there is entirely the client's job (durable local write before send); this server doesn't need special handling for a disconnected recipient beyond "they'll get it next time they sync."
 
@@ -207,20 +209,23 @@ PICASSO_PORT=8099 ./build/Release/PickUsAllBackend
 Order is constrained, not arbitrary: step 3 must precede step 4, or the first rows written to `messages` carry an unverified sender. Step 5 follows 4 because membership comes from the database.
 
 1. ~~**Skeleton** — `app/`, config from env, a real error on a failed bind, one JSON error handler.~~ Done.
-2. **WS transport** — hub, session and codec exist; what's left is making `WsSession::dispatch` actually call the services and adding the bounded outbound queue. Unblocks the client: `ChatRepository.sendToServer()` finally has something to connect to.
-3. **Auth** — Steam OpenID, session tokens, validation on WS upgrade. Only now is `senderSteamId` real.
+2. **WS transport** — hub, session and codec exist; `WsSession::dispatch` now calls into `CallSignalService` for the four RTC relay frame types, but `chat_message`/`call_invite` still just log, and the bounded outbound queue is still missing. Unblocks the client: `ChatRepository.sendToServer()` finally has something to connect to, once chat is wired the same way.
+3. **Auth** — Steam OpenID, session tokens, validation on WS upgrade. A temporary stand-in (`AuthService::authenticate` trusting the bearer token as a literal steamId) exists only to unblock testing step 5 early; it must be replaced before `senderSteamId` is a real, verified identity. `beginLoginUrl`/`completeLogin` are still unimplemented.
 4. **Storage** — schema, migrations, repositories, `ChatService` persists; REST history endpoint.
-5. **RTC signaling** — membership check plus forwarding.
+5. **RTC signaling** — membership check plus forwarding. Forwarding is now implemented (`CallSignalService::relayToPeer`); the membership check is not, so today's relay is open by steamId. `invite()` is still unimplemented. Closing the membership check depends on step 4 (repositories need to be real, not stubs).
 
 ## Known WIP / gaps
 
+> **Security note:** the current build is not safe to expose on a public network. `AuthService::authenticate` accepts any bearer token that parses as an integer as proof of that steamId, and `CallSignalService::relayToPeer` forwards signaling frames to any steamId with no conversation-membership check. Both are explicit, commented temporary stand-ins added to unblock end-to-end RTC testing before steps 3 and 4 land — not partial implementations of the real thing.
+
 - **Nothing is persisted.** `oatpp-postgresql` is in `conanfile.txt` and linked into `picasso_storage`, but no code includes a driver header yet — every repository method throws, and `storage::migrate` does not apply `0001_init.sql`. The dependency is wired, the SQL is written, nothing connects the two.
-- **No auth.** `OpenIdVerifier` and `AuthService` are stubs, so `/ws` cannot be entered by anyone and the `senderSteamId` invariant, while structurally in place, has never actually run.
-- **WS frames are decoded but not acted on.** `WsSession::dispatch` parses the envelope, switches on the type and logs — it does not call the services yet, because they all throw. The identity plumbing around it is real.
+- **No real auth.** `OpenIdVerifier` and `AuthService::beginLoginUrl`/`completeLogin` are stubs. `AuthService::authenticate` is not a stub — it runs — but it verifies nothing (see security note above), so the `senderSteamId` invariant is structurally enforced but not yet backed by a real identity check.
+- **Chat frames are decoded but not acted on.** `WsSession::dispatch` parses `chat_message`/`call_invite` envelopes, switches on the type, and logs — it does not call `ChatService`/`CallSignalService::invite` yet, because both still throw. RTC relay frames (`sdp_offer`, `sdp_answer`, `ice_candidate`, `call_hangup`) are the exception: those are actually relayed now.
+- **RTC relay has no membership check.** See the security note above and "Structural invariants".
 - **`WsSession` serialises sends with a mutex, not a bounded queue.** Concurrent sends are safe; there is no backpressure, so a slow consumer blocks whoever is fanning out to it. See the TODO in `WsSession.hpp`.
 - No client (Kotlin) code talks to this server yet — `ChatRepository.sendToServer()` on the client side is still a `TODO()`.
 - `static/` root is a compile-time constant (`PICASSO_STATIC_ROOT`) pointing at the source tree, which won't survive being containerized.
 - No tests. `picasso_core` exists to link them against, and `domain/` + `ConnectionHub` are the parts written to be testable without a server, but nothing is written.
 - No graceful shutdown — `server.run()` blocks until the process is killed; SIGTERM handling is named in `ServerRunner` but not implemented.
 
-Closed since the previous revision: the hardcoded port/bind (now `PICASSO_*` env vars, defaulting to `0.0.0.0`) and the abort on a failed bind (now logs and exits 1).
+Closed since the previous revision: the hardcoded port/bind (now `PICASSO_*` env vars, defaulting to `0.0.0.0`) and the abort on a failed bind (now logs and exits 1). Also closed: RTC signaling frames now reach `CallSignalService` instead of only being logged, and `/ws` can now be fully entered (with the temporary auth stand-in above) instead of dead-ending at a 501.

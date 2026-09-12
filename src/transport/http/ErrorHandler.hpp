@@ -11,7 +11,7 @@
 #include "oatpp/web/server/handler/ErrorHandler.hpp"
 
 namespace picasso::transport::http {
-    /*
+    /**
      * One JSON shape for every failure, so the client never has to parse an oat++
      * default error page.
      *
@@ -25,7 +25,7 @@ namespace picasso::transport::http {
     public:
         explicit ErrorHandler(std::shared_ptr<oatpp::data::mapping::ObjectMapper> objectMapper);
 
-        std::shared_ptr<oatpp::web::protocol::http::outgoing::Response>
+        [[deprecated]] std::shared_ptr<oatpp::web::protocol::http::outgoing::Response>
         handleError(const oatpp::web::protocol::http::Status& status,
                     const oatpp::String& message,
                     const Headers& headers) override;

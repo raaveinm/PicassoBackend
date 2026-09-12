@@ -16,12 +16,13 @@ namespace picasso::transport::http {
     namespace {
         using ResponseFactory = oatpp::web::protocol::http::outgoing::ResponseFactory;
         using Status = oatpp::web::protocol::http::Status;
+        using Header = oatpp::web::protocol::http::Header;
     } // namespace
 
     ErrorHandler::ErrorHandler(std::shared_ptr<oatpp::data::mapping::ObjectMapper> objectMapper)
         : objectMapper_(std::move(objectMapper)) {}
 
-    std::shared_ptr<oatpp::web::protocol::http::outgoing::Response>
+    [[deprecated]] std::shared_ptr<oatpp::web::protocol::http::outgoing::Response>
     ErrorHandler::handleError(const oatpp::web::protocol::http::Status& status,
                               const oatpp::String& message,
                               const Headers& headers) {
@@ -37,7 +38,17 @@ namespace picasso::transport::http {
             text.erase(0, kNotImplementedPrefix.size());
         }
 
-        auto body = dto::ErrorDto::createShared();
+        if (effectiveStatus == Status::CODE_404) {
+            const auto file = oatpp::String::loadFromFile(PICASSO_STATIC_ROOT "/not_found.html");
+            auto response = ResponseFactory::createResponse(Status::CODE_404, file);
+            response->putHeader(Header::CONTENT_TYPE, "text/html; charset=utf-8");
+            for (const auto& [name, value] : headers.getAll()) {
+                response->putHeader(name.toString(), value.toString());
+            }
+            return response;
+        }
+
+        const auto body = dto::ErrorDto::createShared();
         body->status = effectiveStatus.code;
         body->code = effectiveStatus.description;
         body->message = text;
