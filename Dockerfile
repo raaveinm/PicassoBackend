@@ -7,7 +7,7 @@ LABEL authors="raaveinm"
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    g++-11 gcc-11 cmake ninja-build \
+    build-essential g++-11 gcc-11 cmake ninja-build \
     python3 python3-venv python3-pip \
     pkg-config git ca-certificates libssl-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -15,7 +15,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # conan_conf.cmake looks for the conan executable at <source-dir>/.venv/bin/conan.
-RUN python3 -m venv .venv && .venv/bin/pip install --no-cache-dir conan
+# conan_conf.cmake passes --profile:host=default, so a default profile has to
+# exist before the cmake configure step invokes conan install.
+RUN python3 -m venv .venv \
+    && .venv/bin/pip install --no-cache-dir conan \
+    && .venv/bin/conan profile detect
 
 COPY conanfile.txt conan_conf.cmake CMakeLists.txt ./
 COPY main.cpp ./main.cpp
