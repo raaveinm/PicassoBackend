@@ -1,0 +1,12 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pickusall-backend:latest
+    ports:
+      - "8000:8000"
+    environment:
+      PICASSO_BIND: 0.0.0.0
+      PICASSO_PORT: 8000
+    restart: unless-stopped

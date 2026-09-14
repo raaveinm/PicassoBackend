@@ -1,0 +1,8 @@
+build/
+.venv/
+.git/
+.idea/
+cmake-build-*/
+CMakeUserPresets.json
+CMakePresets.json
+*.log
