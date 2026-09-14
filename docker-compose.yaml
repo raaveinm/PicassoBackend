@@ -4,9 +4,29 @@ services:
       context: .
       dockerfile: Dockerfile
     image: pickusall-backend:latest
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     environment:
       PICASSO_BIND: 0.0.0.0
       PICASSO_PORT: 8000
+      PICASSO_PUBLIC_URL: ${PICASSO_PUBLIC_URL:-http://localhost:8000}
     restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      PICASSO_DOMAIN: ${PICASSO_DOMAIN:-:80}
+    volumes:
+      - ./config/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

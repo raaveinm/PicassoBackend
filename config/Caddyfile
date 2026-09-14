@@ -1,0 +1,4 @@
+# {$PICASSO_DOMAIN} defaults to ":80" (docker-compose.yaml) - plain HTTP on any
+{$PICASSO_DOMAIN} {
+	reverse_proxy backend:8000
+}
