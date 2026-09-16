@@ -2,3 +2,6 @@
 {$PICASSO_DOMAIN} {
 	reverse_proxy backend:8000
 }
+{$PICASSO_DOMAIN}/statics/* {
+	reverse_proxy grafana:3000
+}
