@@ -15,4 +15,5 @@ target_link_libraries(picasso_app
         picasso_service
         picasso_storage
         picasso_steam
+        picasso_logger
         oatpp::oatpp)

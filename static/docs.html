@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>docs — picassobackend</title>
+<meta name="description" content="picassobackend reference: environment variables, build steps, and API usage.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&family=Roboto+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+    /* Material Design 3 baseline color roles — kept identical to index.html so the
+       two pages read as one surface, not two different sites. */
+    :root {
+        --md-primary: #6750A4;
+        --md-on-primary: #FFFFFF;
+        --md-primary-container: #EADDFF;
+        --md-on-primary-container: #21005D;
+        --md-secondary-container: #E8DEF8;
+        --md-on-secondary-container: #1D192B;
+        --md-surface: #FEF7FF;
+        --md-on-surface: #1D1B20;
+        --md-on-surface-variant: #49454F;
+        --md-surface-container-low: #F7F2FA;
+        --md-surface-container: #F3EDF7;
+        --md-surface-container-high: #ECE6F0;
+        --md-outline: #79747E;
+        --md-outline-variant: #CAC4D0;
+        --md-shadow: 0, 0, 0;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --md-primary: #D0BCFF;
+            --md-on-primary: #381E72;
+            --md-primary-container: #4F378B;
+            --md-on-primary-container: #EADDFF;
+            --md-secondary-container: #4A4458;
+            --md-on-secondary-container: #E8DEF8;
+            --md-surface: #141218;
+            --md-on-surface: #E6E0E9;
+            --md-on-surface-variant: #CAC4D0;
+            --md-surface-container-low: #1D1B20;
+            --md-surface-container: #211F26;
+            --md-surface-container-high: #2B2930;
+            --md-outline: #938F99;
+            --md-outline-variant: #49454F;
+        }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+        margin: 0;
+        background: var(--md-surface);
+        color: var(--md-on-surface);
+        font-family: Roboto, system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-size: 1rem;
+        line-height: 1.5rem;
+        letter-spacing: 0.031rem;
+    }
+
+    header.app-bar {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        height: 4rem;
+        padding: 0 1rem;
+        background: var(--md-surface-container);
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+
+    .app-bar .badge {
+        display: grid;
+        place-items: center;
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 50%;
+        background: var(--md-primary-container);
+        color: var(--md-on-primary-container);
+        font-weight: 500;
+    }
+
+    .app-bar h1 {
+        margin: 0;
+        font-size: 1.375rem;
+        line-height: 1.75rem;
+        font-weight: 400;
+    }
+
+    .app-bar .back {
+        margin-left: auto;
+        color: var(--md-primary);
+        text-decoration: none;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    main {
+        max-width: 52.5rem;
+        margin: 0 auto;
+        padding: 1.5rem 1rem 4rem;
+    }
+
+    .hero h2 {
+        margin: 1.5rem 0 0.5rem;
+        font-size: 2.25rem;
+        line-height: 2.75rem;
+        font-weight: 400;
+    }
+
+    .hero p.lede {
+        margin: 0 0 1.5rem;
+        color: var(--md-on-surface-variant);
+        max-width: 42rem;
+    }
+
+    section > h3 {
+        margin: 2.5rem 0 1rem;
+        font-size: 1.5rem;
+        line-height: 2rem;
+        font-weight: 400;
+    }
+
+    section > p.section-note {
+        margin: -0.5rem 0 1.25rem;
+        color: var(--md-on-surface-variant);
+        font-size: 0.875rem;
+        max-width: 42rem;
+    }
+
+    /* Nav chips jumping to each section */
+    .toc {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin: 0 0 1.5rem;
+        padding: 0;
+        list-style: none;
+    }
+
+    .toc a {
+        display: inline-flex;
+        align-items: center;
+        height: 2rem;
+        padding: 0 1rem;
+        border-radius: 0.5rem;
+        border: 1px solid var(--md-outline-variant);
+        color: var(--md-on-surface-variant);
+        text-decoration: none;
+        font-size: 0.875rem;
+        line-height: 1.25rem;
+        font-weight: 500;
+    }
+
+    .toc a:hover {
+        background: var(--md-surface-container-low);
+    }
+
+    /* Data table — variables reference */
+    .table-wrap {
+        border-radius: 0.75rem;
+        overflow: hidden;
+        background: var(--md-surface-container-low);
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.875rem;
+    }
+
+    thead th {
+        text-align: left;
+        padding: 0.875rem 1.25rem;
+        background: var(--md-surface-container-high);
+        color: var(--md-on-surface);
+        font-weight: 500;
+    }
+
+    tbody td {
+        padding: 0.875rem 1.25rem;
+        border-top: 1px solid var(--md-outline-variant);
+        color: var(--md-on-surface-variant);
+        vertical-align: top;
+    }
+
+    tbody td:first-child {
+        color: var(--md-on-surface);
+        font-weight: 500;
+        white-space: nowrap;
+    }
+
+    /* Cards */
+    .card {
+        background: var(--md-surface-container-low);
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+    }
+
+    .card.outlined {
+        background: var(--md-surface);
+        border: 1px solid var(--md-outline-variant);
+    }
+
+    .card + .card {
+        margin-top: 1rem;
+    }
+
+    .card h4 {
+        margin: 0 0 0.5rem;
+        font-size: 1rem;
+        line-height: 1.5rem;
+        font-weight: 500;
+        letter-spacing: 0.009rem;
+    }
+
+    .card p {
+        margin: 0 0 0.75rem;
+        font-size: 0.875rem;
+        line-height: 1.25rem;
+        letter-spacing: 0.016rem;
+        color: var(--md-on-surface-variant);
+    }
+
+    .card p:last-child {
+        margin-bottom: 0;
+    }
+
+    /* Code blocks */
+    pre {
+        margin: 0 0 0.75rem;
+        padding: 1rem 1.25rem;
+        border-radius: 0.75rem;
+        background: var(--md-surface-container-high);
+        overflow-x: auto;
+    }
+
+    pre:last-child {
+        margin-bottom: 0;
+    }
+
+    pre code {
+        background: none;
+        padding: 0;
+        font-size: 0.8125rem;
+        line-height: 1.375rem;
+        color: var(--md-on-surface);
+    }
+
+    code {
+        font-family: "Roboto Mono", ui-monospace, monospace;
+        font-size: 0.8125rem;
+        background: var(--md-surface-container-high);
+        border-radius: 0.25rem;
+        padding: 0.0625rem 0.375rem;
+    }
+
+    /* Status/label chip reused for the response-status column */
+    .pill {
+        display: inline-block;
+        padding: 0.125rem 0.625rem;
+        border-radius: 0.5rem;
+        font-size: 0.6875rem;
+        line-height: 1rem;
+        font-weight: 500;
+        letter-spacing: 0.031rem;
+        background: var(--md-secondary-container);
+        color: var(--md-on-secondary-container);
+    }
+
+    .pill.ok {
+        background: var(--md-primary-container);
+        color: var(--md-on-primary-container);
+    }
+
+    ul.plain {
+        margin: 0;
+        padding-left: 1.25rem;
+        color: var(--md-on-surface-variant);
+        font-size: 0.875rem;
+    }
+
+    ul.plain li + li {
+        margin-top: 0.375rem;
+    }
+
+    footer {
+        border-top: 1px solid var(--md-outline-variant);
+        margin-top: 3rem;
+        padding-top: 1.5rem;
+        font-size: 0.75rem;
+        line-height: 1rem;
+        letter-spacing: 0.031rem;
+        color: var(--md-on-surface-variant);
+    }
+
+    footer a { color: var(--md-primary); }
+</style>
+</head>
+<body>
+
+<header class="app-bar">
+    <span class="badge" aria-hidden="true">P</span>
+    <h1>picassobackend docs</h1>
+    <a class="back" href="/">&larr; Back to overview</a>
+</header>
+
+<main>
+    <section class="hero">
+        <h2>Variables, builds, usage</h2>
+        <p class="lede">
+            The environment variables the server reads at startup, how to build it from a clean checkout,
+            and the endpoints that answer something real today. For the full design rationale — wire
+            protocol, layering rules, roadmap — see <code>CLAUDE.md</code> in the repository.
+        </p>
+        <ul class="toc">
+            <li><a href="#variables">Variables</a></li>
+            <li><a href="#build">Build</a></li>
+            <li><a href="#usage">Usage</a></li>
+        </ul>
+    </section>
+
+    <section id="variables">
+        <h3>Environment variables</h3>
+        <p class="section-note">
+            All of them are optional — an unset variable falls back to the default shown below.
+        </p>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>Variable</th>
+                    <th>Default</th>
+                    <th>Meaning</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr>
+                    <td><code>PICASSO_BIND</code></td>
+                    <td><code>0.0.0.0</code></td>
+                    <td>Address the HTTP/WS listener binds to.</td>
+                </tr>
+                <tr>
+                    <td><code>PICASSO_PORT</code></td>
+                    <td><code>8000</code></td>
+                    <td>Listener port. Must parse as an integer in <code>1..65535</code>, or startup fails.</td>
+                </tr>
+                <tr>
+                    <td><code>PICASSO_DB_DSN</code></td>
+                    <td><em>empty</em></td>
+                    <td>Postgres connection string. Read into <code>Config</code> already; nothing connects with it yet — storage is still stubbed.</td>
+                </tr>
+                <tr>
+                    <td><code>PICASSO_PUBLIC_URL</code></td>
+                    <td><code>http://127.0.0.1:8000</code></td>
+                    <td>Base URL this instance is reachable at, used for Steam OpenID return addresses.</td>
+                </tr>
+                <tr>
+                    <td><code>PICASSO_LOG_LEVEL</code></td>
+                    <td><code>info</code></td>
+                    <td>Stored on <code>Config</code>; not wired to the logger yet.</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="build">
+        <h3>Build</h3>
+        <p class="section-note">
+            Verified configuration: Linux, g++-11, Ninja Multi-Config, Conan from a repo-local
+            <code>.venv</code>. The Conan profile is derived from the compiler you pass below.
+        </p>
+
+        <article class="card outlined">
+            <h4>First-time bootstrap</h4>
+            <p>
+                <code>cmake --preset conan-release</code> cannot be used on a clean checkout — that preset
+                file is generated by Conan's toolchain, which only runs once configure has already started.
+                Bootstrap with a direct invocation once:
+            </p>
+            <pre><code>cmake -S . -B build -G "Ninja Multi-Config" \
+    -DCMAKE_C_COMPILER=/usr/bin/gcc-11 \
+    -DCMAKE_CXX_COMPILER=/usr/bin/g++-11 \
+    -DCMAKE_BUILD_TYPE=Release</code></pre>
+        </article>
+
+        <article class="card outlined">
+            <h4>Every build after that</h4>
+            <p>
+                The build directory is multi-config — binaries land in <code>build/&lt;Config&gt;/</code>,
+                and a bare <code>ninja</code> in <code>build/</code> does not necessarily build the config
+                you expect. Always pass <code>--config</code> explicitly:
+            </p>
+            <pre><code>cmake --build build --config Release</code></pre>
+        </article>
+
+        <article class="card outlined">
+            <h4>Docker</h4>
+            <p>The repository's <code>Dockerfile</code> reproduces the same toolchain from a clean Ubuntu 22.04 base:</p>
+            <pre><code>docker build -t picassobackend .
+docker run --rm -p 8000:8000 picassobackend</code></pre>
+        </article>
+    </section>
+
+    <section id="usage">
+        <h3>Usage</h3>
+        <p class="section-note">
+            Endpoints that are not implemented yet answer a uniform 501 naming the roadmap step they are
+            waiting on, instead of a generic error.
+        </p>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>Request</th>
+                    <th>Status</th>
+                    <th>Response</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr>
+                    <td><code>GET /ping</code></td>
+                    <td><span class="pill ok">200</span></td>
+                    <td><code>pong</code>, with header <code>X-Service-Status: Healthy</code>.</td>
+                </tr>
+                <tr>
+                    <td><code>GET /</code></td>
+                    <td><span class="pill ok">200</span></td>
+                    <td>Serves <code>static/index.html</code>.</td>
+                </tr>
+                <tr>
+                    <td><code>GET /docs</code></td>
+                    <td><span class="pill ok">200</span></td>
+                    <td>This page (<code>static/docs.html</code>).</td>
+                </tr>
+                <tr>
+                    <td><code>GET /ws</code>, no bearer token</td>
+                    <td><span class="pill">401</span></td>
+                    <td>Rejected before the upgrade.</td>
+                </tr>
+                <tr>
+                    <td><code>GET /ws</code>, <code>Authorization: Bearer &lt;uint64&gt;</code></td>
+                    <td><span class="pill ok">101</span></td>
+                    <td>
+                        Switches protocols. The token is taken as the literal steamId with no verification —
+                        a temporary stand-in ahead of real Steam auth, not safe for a public network.
+                    </td>
+                </tr>
+                <tr>
+                    <td>Any unimplemented endpoint</td>
+                    <td><span class="pill">501</span></td>
+                    <td><code>{"status":501,...,"message":"service: ... not implemented yet (roadmap step N: ...)"}</code></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <article class="card">
+            <h4>Quick checks</h4>
+            <pre><code>curl -i http://127.0.0.1:8000/ping
+curl -i http://127.0.0.1:8000/
+
+PICASSO_PORT=8099 ./build/Release/PickUsAllBackend</code></pre>
+        </article>
+
+        <article class="card">
+            <h4>WebSocket frames</h4>
+            <p>
+                One connection per client per server, carrying both chat and RTC signaling as an
+                <code>EnvelopeDto</code>. <code>sdp_offer</code>, <code>sdp_answer</code>,
+                <code>ice_candidate</code>, and <code>call_hangup</code> are relayed end to end today;
+                <code>chat_message</code> and <code>call_invite</code> are parsed and logged only. See
+                <code>CLAUDE.md</code>'s "Wire protocol" table for the full frame list.
+            </p>
+        </article>
+    </section>
+
+    <footer>
+        Served by picassobackend from <code>static/docs.html</code>. Source on GitHub:
+        <a href="https://github.com/raaveinm/picassobackend">backend</a> ·
+        <a href="https://github.com/raaveinm/pickusall">frontend</a>.
+    </footer>
+</main>
+
+</body>
+</html>

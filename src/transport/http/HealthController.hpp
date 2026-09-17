@@ -32,6 +32,17 @@ namespace picasso::transport::http {
 
             return response;
         }
+
+        ENDPOINT("GET", "/docs", docs) {
+            const auto file = oatpp::String::loadFromFile(PICASSO_STATIC_ROOT "/docs.html");
+
+            OATPP_ASSERT_HTTP(file != nullptr, Status::CODE_404, "docs.html not found")
+
+            const auto response = createResponse(Status::CODE_200, file);
+            response->putHeader(Header::CONTENT_TYPE, "text/html; charset=utf-8");
+
+            return response;
+        }
     };
 } // namespace picasso::transport::http
 

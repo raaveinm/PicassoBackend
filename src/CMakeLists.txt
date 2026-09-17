@@ -10,6 +10,7 @@ target_include_directories(picasso_base INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_features(picasso_base INTERFACE cxx_std_20)
 
 add_subdirectory(domain)
+add_subdirectory(logger)
 add_subdirectory(dto)
 add_subdirectory(storage)
 add_subdirectory(steam)

@@ -29,6 +29,8 @@ namespace picasso::app {
              */
             OATPP_LOGE("ServerRunner", "cannot bind %s:%d - %s",
                        config.bindAddress.c_str(), config.port, error.what());
+            components.activityLogger->log("ERROR", "ServerRunner",
+                "cannot bind " + config.bindAddress + ":" + std::to_string(config.port) + " - " + error.what());
             return 1;
         }
 
@@ -40,6 +42,8 @@ namespace picasso::app {
         oatpp::network::Server server(connectionProvider, connectionHandler);
 
         OATPP_LOGI("ServerRunner", "listening on %s:%d", config.bindAddress.c_str(), config.port);
+        components.activityLogger->log("INFO", "ServerRunner",
+            "listening on " + config.bindAddress + ":" + std::to_string(config.port));
 
         /*
          * Blocking API: one thread per connection, which with long-lived WS

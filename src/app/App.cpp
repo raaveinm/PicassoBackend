@@ -22,6 +22,8 @@ namespace picasso::app {
         components.objectMapper = oatpp::parser::json::mapping::ObjectMapper::createShared();
         components.router = oatpp::web::server::HttpRouter::createShared();
 
+        components.activityLogger = std::make_shared<logger::ActivityLogger>();
+
         components.repositories = storage::makeRepositories(config.databaseDsn);
 
         components.hub = std::make_shared<transport::ws::ConnectionHub>();

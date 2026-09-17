@@ -10,6 +10,7 @@
 #include "oatpp/web/server/HttpRouter.hpp"
 
 #include "app/Config.hpp"
+#include "logger/ActivityLogger.hpp"
 #include "service/Services.hpp"
 #include "storage/Repositories.hpp"
 #include "transport/ws/ConnectionHub.hpp"
@@ -23,6 +24,7 @@ namespace picasso::app {
         std::shared_ptr<oatpp::data::mapping::ObjectMapper> objectMapper;
         std::shared_ptr<oatpp::web::server::HttpRouter> router;
 
+        std::shared_ptr<logger::ActivityLogger> activityLogger;
         storage::Repositories repositories;
         std::shared_ptr<transport::ws::ConnectionHub> hub;
         service::Services services;

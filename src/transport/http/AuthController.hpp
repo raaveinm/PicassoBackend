@@ -31,7 +31,7 @@ namespace picasso::transport::http {
         ENDPOINT("GET", "/auth/steam/begin", authBegin) {
             const auto response = createResponse(Status::CODE_302, "");
             /* oat++ 1.3.0's Header has no LOCATION constant - only CONTENT_TYPE and AUTHORIZATION. */
-            response->putHeader("Location", auth_->beginLoginUrl().c_str());
+            response->putHeader("Location", service::AuthService::beginLoginUrl().c_str());
             return response;
         }
 
@@ -47,10 +47,10 @@ namespace picasso::transport::http {
                 params.emplace(*name.toString(), *value.toString());
             }
 
-            const auto issued = auth_->completeLogin(params);
+            const auto issued = service::AuthService::completeLogin(params);
             OATPP_ASSERT_HTTP(issued.has_value(), Status::CODE_401, "steam assertion rejected")
 
-            auto body = dto::AuthTokenDto::createShared();
+            const auto body = dto::AuthTokenDto::createShared();
             body->token = issued->token.c_str();
             body->steamId = std::to_string(issued->steamId.value()).c_str();
             body->expiresAt = issued->expiresAtEpochMs;
