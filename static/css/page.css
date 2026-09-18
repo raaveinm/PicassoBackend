@@ -1,0 +1,64 @@
+/* Shared content-layout rules for the standard article pages (index, docs).
+   not_found.html has its own centered layout and does not load this file. */
+
+main {
+    max-width: 52.5rem;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 4rem;
+}
+
+/* display-small */
+.hero h2 {
+    margin: 1.5rem 0 0.5rem;
+    font-size: 2.25rem;
+    line-height: 2.75rem;
+    font-weight: 400;
+}
+
+.hero p.lede {
+    margin: 0 0 1.5rem;
+    color: var(--md-on-surface-variant);
+    max-width: 42rem;
+}
+
+/* headline-small */
+section > h3 {
+    margin: 2.5rem 0 1rem;
+    font-size: 1.5rem;
+    line-height: 2rem;
+    font-weight: 400;
+}
+
+/* Cards — filled variant */
+.card {
+    background: var(--md-surface-container-low);
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+}
+
+.card.outlined {
+    background: var(--md-surface);
+    border: 1px solid var(--md-outline-variant);
+}
+
+/* title-medium */
+.card h4 {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+    line-height: 1.5rem;
+    font-weight: 500;
+    letter-spacing: 0.009rem;
+}
+
+/* body-medium */
+.card p {
+    margin: 0 0 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    letter-spacing: 0.016rem;
+    color: var(--md-on-surface-variant);
+}
+
+.card p:last-child {
+    margin-bottom: 0;
+}

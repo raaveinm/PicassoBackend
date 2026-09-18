@@ -1,0 +1,84 @@
+/* index.html only: hero chips, feature grid, roadmap status list. */
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 1rem;
+}
+
+/* Assist chips */
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0 0 1.5rem;
+    padding: 0;
+    list-style: none;
+}
+
+.chips li {
+    display: inline-flex;
+    align-items: center;
+    height: 2rem;
+    padding: 0 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--md-outline-variant);
+    color: var(--md-on-surface-variant);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    font-weight: 500;
+}
+
+/* Status list */
+.status {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    background: var(--md-surface-container-low);
+}
+
+.status li {
+    display: flex;
+    gap: 1rem;
+    align-items: baseline;
+    padding: 1rem 1.25rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+}
+
+.status li + li {
+    border-top: 1px solid var(--md-outline-variant);
+}
+
+.status .step {
+    flex: none;
+    min-width: 6.5rem;
+    font-weight: 500;
+    color: var(--md-on-surface);
+}
+
+.status .note {
+    color: var(--md-on-surface-variant);
+}
+
+.state {
+    display: inline-block;
+    margin-left: auto;
+    flex: none;
+    padding: 0.125rem 0.625rem;
+    border-radius: 0.5rem;
+    font-size: 0.6875rem;
+    line-height: 1rem;
+    font-weight: 500;
+    letter-spacing: 0.031rem;
+    text-transform: uppercase;
+    background: var(--md-secondary-container);
+    color: var(--md-on-secondary-container);
+}
+
+.state.done {
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+}

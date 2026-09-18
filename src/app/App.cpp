@@ -15,6 +15,10 @@
 #include "transport/http/HttpModule.hpp"
 
 namespace picasso::app {
+    namespace {
+        constexpr std::string TAG = "oatpp-core-app";
+    }
+
     Components buildComponents(const Config& config) {
         Components components;
         components.config = config;
@@ -47,16 +51,23 @@ namespace picasso::app {
         int exitCode;
         try {
             const auto config = loadConfigFromEnvironment();
+            const std::string config_message =
+                "Config {\n  " + config.bindAddress + ":"
+            + std::string{std::to_string(config.port)} +
+            + "\n  databaseDsn :" + config.databaseDsn
+            + "\n  publicUrl :" + config.publicUrl
+            + "\n  logLevel :" + config.logLevel
+            + "\n}";
+            OATPP_LOGI(TAG, config_message.c_str());
             auto components = buildComponents(config);
             exitCode = serve(components);
         } catch (const std::exception& error) {
-            OATPP_LOGE("App", "startup failed: %s", error.what());
+            OATPP_LOGE(TAG, "startup failed: %s", error.what());
             exitCode = 1;
         }
 
-        const auto leaked = oatpp::base::Environment::getObjectsCount();
-        if (leaked != 0) {
-            OATPP_LOGW("App", "%d oatpp objects still alive at shutdown", leaked);
+        if (const auto leaked = oatpp::base::Environment::getObjectsCount(); leaked != 0) {
+            OATPP_LOGW(TAG, "%d oatpp objects still alive at shutdown", leaked);
         }
 
         oatpp::base::Environment::destroy();

@@ -1,0 +1,86 @@
+/* not_found.html only: full-bleed centered 404 layout with the ambient canvas backdrop. */
+
+html, body {
+    height: 100%;
+}
+
+body {
+    overflow-x: hidden;
+}
+
+/* Ambient background canvas — port of the client's AmbientRandom composable:
+   drifting, fading, blurred gradient blobs behind the content. */
+#ambient {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    filter: blur(64px);
+    opacity: 0.55;
+}
+
+@media (prefers-color-scheme: dark) {
+    #ambient { opacity: 0.8; }
+}
+
+header.app-bar {
+    position: relative;
+    z-index: 1;
+    background: color-mix(in srgb, var(--md-surface-container) 80%, transparent);
+    backdrop-filter: blur(8px);
+}
+
+main {
+    position: relative;
+    z-index: 1;
+    max-width: 42rem;
+    margin: 0 auto;
+    padding: 4rem 1.5rem 4rem;
+    min-height: calc(100% - 4rem);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.status-code {
+    margin: 0;
+    font-size: 6rem;
+    line-height: 1;
+    font-weight: 500;
+    color: var(--md-primary);
+}
+
+.hero h2 {
+    margin: 1rem 0 0.5rem;
+    font-size: 2rem;
+    line-height: 2.5rem;
+    font-weight: 400;
+}
+
+.hero p.lede {
+    margin: 0 0 2rem;
+    color: var(--md-on-surface-variant);
+}
+
+.card.outlined {
+    background: color-mix(in srgb, var(--md-surface) 75%, transparent);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: 0.75rem;
+    padding: 1rem 1.25rem;
+    margin-bottom: 2rem;
+}
+
+.card.outlined p {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--md-on-surface-variant);
+}
+
+.actions {
+    justify-content: center;
+}
