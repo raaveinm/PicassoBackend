@@ -24,7 +24,7 @@ Verified running:
 
 Real logic, not stubs: `ConnectionHub` (presence + fan-out), `EnvelopeCodec`, `Config`, `ErrorHandler`, the WS session/socket lifecycle and identity plumbing, `CallSignalService::relayToPeer` (temporary open relay, see below), `AuthService::authenticate` (temporary, insecure).
 
-Still stubbed, throwing `std::logic_error` that surfaces as 501: every repository method, `storage::migrate`, `ChatService::submit`, `CallSignalService::invite`, `AuthService::beginLoginUrl`/`completeLogin`, `OpenIdVerifier`. Nothing touches Postgres - `oatpp-postgresql` is chosen but deliberately not yet in `conanfile.txt`.
+Still stubbed, throwing `std::logic_error` that surfaces as 501: every repository method, `storage::migrate`, `ChatService::submit`, `CallSignalService::invite`, `AuthService::beginLoginUrl`/`completeLogin`, `OpenIdVerifier`. Nothing touches Postgres yet: `oatpp-postgresql/1.3.0` is in `conanfile.txt` and linked `PRIVATE` into `picasso_storage`, but no code includes a driver header, so the linker drops it from the binary.
 
 ## What this server actually does (per the client's multi-server design)
 
@@ -139,22 +139,38 @@ A missed call needs no durability treatment — if the target isn't online, it j
 Lives in `src/storage/migrations/0001_init.sql`. Nothing applies it yet.
 
 ```
-artists              (steam_id PK, display_name, avatar_url, last_seen_at)
-conversations        (id identity PK, kind, title, created_at, created_by -> artists)
-conversation_members (conversation_id -> conversations, steam_id -> artists, joined_at)
-                     PK(conversation_id, steam_id)
-messages             (id identity PK, conversation_id -> conversations,
-                      sender_steam_id -> artists, text, timestamp)
-session              (token_hash PK, steam_id -> artists, created_at, expires_at, revoked_at)
+users         (steam_id PK)
+sessions      (token_hash PK, steam_id -> users, created_at, expires_at, revoked_at)
+
+conversations (id identity PK, kind CHECK ('dm'|'palette'), created_at, UNIQUE(id, kind))
+  +-- chat    (conversation_id PK -> conversations, member_a -> users, member_b -> users)
+  +-- palette (conversation_id PK -> conversations, name)
+                +-- members (palette_id -> palette, user_id -> users, joined_at)
+                            PK(palette_id, user_id)
+
+message_data  (id identity PK, conversation_id -> conversations,
+               sender_steam_id -> users, text_message, sent_at)
+
+game_queue    (id identity PK, user_id -> users, game_id, priority, enqueued_at,
+               UNIQUE(user_id, game_id))
 ```
 
-All ids and timestamps are `bigint`; timestamps are epoch milliseconds, matching the domain structs (`Message::createdAtEpochMs`) so nothing converts between a database time type and the wire value. `ConversationId` is therefore `int64`, not a string.
+All ids and timestamps are `bigint`; timestamps are epoch milliseconds, matching the domain structs (`Message::createdAtEpochMs`) so nothing converts between a database time type and the wire value. `ConversationId` is therefore `int64`, not a string. Column names are unquoted snake_case on purpose — Postgres folds unquoted identifiers to lower case, so a column created as `"steamId"` stays quoted in every query forever.
 
-Three decisions worth not re-litigating:
+`conversations` is a supertype with two **disjoint** specialisations. `UNIQUE (id, kind)` looks redundant next to the PK, but it is what lets `chat` and `palette` key on `(conversation_id, kind)` via a generated constant `kind` column — that turns "a conversation is a dm or a palette, never both" into a constraint rather than a convention. Cost: `isMember`/`conversationsOf` become UNION queries over `chat` and `members`; the ports don't change, the repository absorbs it.
 
-- **No `role` on `conversation_members`.** Within a Palette every member is an equal owner — there is nothing to distinguish. Adding one later is a migration; enforcing a permission model that doesn't exist would be dead weight.
-- **`messages.id` is the primary key on its own**, global and monotonic, plus an index on `(conversation_id, id)`. A composite PK over `(id, conversation_id)` would not make `id` unique by itself, and the `?after={id}` sync contract depends on exactly that. The separate index exists because the PK index alone can't answer "this conversation, after N".
+Decisions worth not re-litigating:
+
+- **No `role` on `members`.** Within a Palette every member is an equal owner — there is nothing to distinguish. Adding one later is a migration; enforcing a permission model that doesn't exist would be dead weight.
+- **`members` PK is the pair `(palette_id, user_id)`.** Keying on `palette_id` alone caps a Palette at one member, the opposite of what a friend group is.
+- **`message_data.id` is the primary key on its own**, global and monotonic, plus an index on `(conversation_id, id)`. A composite PK over `(id, conversation_id)` would not make `id` unique by itself, and the `?after={id}` sync contract depends on exactly that. The separate index exists because the PK index alone can't answer "this conversation, after N". Messages hang off `conversations`, not off `chat`/`palette`, so history works the same for a DM and a Palette.
+- **`sessions` is a table, not a column on `users`.** One row per user would cap a user at one live session, and `ConnectionHub` deliberately maps one steamId to several sockets. A hash also does not fit in a `bigint` — SHA-256 is 256 bits.
 - **`token_hash`, not `token`.** The plaintext is returned to the client once at login and never stored, so a database dump is not a set of live sessions. `expires_at` is separate from `revoked_at`: expiry is automatic, revocation is an explicit logout.
+- **`CHECK (member_a < member_b)` on `chat`** rules out a conversation with yourself *and* forces one canonical ordering, so `UNIQUE (member_a, member_b)` can't be sidestepped by inserting the pair the other way round.
+
+`game_queue` is new and has no server code behind it yet — no port, no service, no endpoint. `game_id` is a Steam appid, opaque here.
+
+[`docs/schema.chartdb.json`](docs/schema.chartdb.json) is the chartdb diagram. The SQL is authoritative: the diagram format cannot express generated columns, `CHECK` constraints or composite foreign keys, so SQL regenerated from it is weaker than the migration.
 
 ## Build
 
@@ -206,7 +222,7 @@ PICASSO_PORT=8099 ./build/Release/PickUsAllBackend
 
 ## Roadmap
 
-Order is constrained, not arbitrary: step 3 must precede step 4, or the first rows written to `messages` carry an unverified sender. Step 5 follows 4 because membership comes from the database.
+Order is constrained, not arbitrary: step 3 must precede step 4, or the first rows written to `message_data` carry an unverified sender. Step 5 follows 4 because membership comes from the database.
 
 1. ~~**Skeleton** — `app/`, config from env, a real error on a failed bind, one JSON error handler.~~ Done.
 2. **WS transport** — hub, session and codec exist; `WsSession::dispatch` now calls into `CallSignalService` for the four RTC relay frame types, but `chat_message`/`call_invite` still just log, and the bounded outbound queue is still missing. Unblocks the client: `ChatRepository.sendToServer()` finally has something to connect to, once chat is wired the same way.

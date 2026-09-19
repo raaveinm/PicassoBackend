@@ -16,7 +16,7 @@
 
 namespace picasso::app {
     namespace {
-        constexpr std::string TAG = "oatpp-core-app";
+        const std::string TAG = "oatpp-core-app";
     }
 
     Components buildComponents(const Config& config) {

@@ -1,9 +1,5 @@
 [requires]
 boost/1.91.0
-# The oatpp family is pinned to plain 1.3.0, not 1.3.0.latest. ConanCenter packages
-# both the tagged release and the upstream "latest" branch, but oatpp-postgresql
-# only exists as 1.3.0 and depends on oatpp/1.3.0 - mixing them is a hard version
-# conflict in the graph, not a warning. All three siblings have to agree.
 oatpp/1.3.0
 oatpp-websocket/1.3.0
 oatpp-postgresql/1.3.0
