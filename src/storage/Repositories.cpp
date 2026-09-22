@@ -17,8 +17,4 @@ namespace picasso::storage {
             .sessions = std::make_shared<PgSessionRepository>(dsn),
         };
     }
-
-    void migrate(const std::string&) {
-        notImplemented("storage::migrate", "4: storage");
-    }
 } // namespace picasso::storage

@@ -10,6 +10,7 @@ add_library(picasso_storage STATIC
         PicassoDatabaseClient.hpp
         Repositories.cpp
         Repositories.hpp
+        Rows.hpp
         PgChatRepository.cpp
         PgChatRepository.hpp
         PgConversationRepository.cpp

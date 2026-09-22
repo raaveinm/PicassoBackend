@@ -11,15 +11,6 @@
 #include "oatpp/web/server/handler/ErrorHandler.hpp"
 
 namespace picasso::transport::http {
-    /**
-     * One JSON shape for every failure, so the client never has to parse an oat++
-     * default error page.
-     *
-     * Only the (status, message, headers) overload exists in oat++ 1.3.0 - the
-     * processor catches exceptions before we see them and passes a status in. The
-     * not-implemented stubs are recovered from the message prefix; see
-     * picasso::kNotImplementedPrefix.
-     */
     class ErrorHandler final : public oatpp::base::Countable,
                                public oatpp::web::server::handler::ErrorHandler {
     public:
