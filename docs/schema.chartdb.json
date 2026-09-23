@@ -1,0 +1,782 @@
+
+  "id": "0",
+  "name": "picassobackend server schema",
+  "createdAt": "2026-09-19T09:18:14.587Z",
+  "updatedAt": "2026-09-19T12:00:00.000Z",
+  "databaseType": "postgresql",
+  "tables": [
+    {
+      "id": "2",
+      "name": "users",
+      "x": -820,
+      "y": -560,
+      "fields": [
+        {
+          "id": "1",
+          "name": "steam_id",
+          "type": {
+            "id": "bigint",
+            "name": "bigint"
+          },
+          "unique": true,
+          "nullable": false,
+          "primaryKey": true,
+          "createdAt": 1789900001000
+        }
+      ],
+      "indexes": [
+        {
+          "id": "3",
+          "name": "",
+          "fieldIds": [
+            "1"
+          ],
+          "unique": true,
+          "isPrimaryKey": true,
+          "createdAt": 1789900002000
+        }
+      ],
+      "color": "#8eb7ff",
+      "createdAt": 1789900003000,
+      "isView": false,
+      "order": 0,
+      "schema": "public"
+    },
+    {
+      "id": "9",
+      "name": "sessions",
+      "x": -1180,
+      "y": -260,
+      "fields": [
+        {
+          "id": "4",
+          "name": "token_hash",
+          "type": {
+            "id": "text",
+            "name": "text"
+          },
+          "unique": true,
+          "nullable": false,
+          "primaryKey": true,
+          "createdAt": 1789900004000
+        },
+        {
+          "id": "5",
+          "name": "steam_id",
+          "type": {
+            "id": "bigint",
+            "name": "bigint"
+          },
+          "unique": false,
+          "nullable": false,
+          "primaryKey": false,
+          "createdAt": 1789900005000
+        },
+        {
+          "id": "6",
+          "name": "created_at",
+          "type": {
+            "id": "bigint",
+            "name": "bigint"
+          },
+          "unique": false,
+          "nullable": false,
+          "primaryKey": false,
+          "createdAt": 1789900006000
+        },
+        {
+          "id": "7",
+          "name": "expires_at",
+          "type": {
+            "id": "bigint",
+            "name": "bigint"
+          },
+          "unique": false,
+          "nullable": false,
+          "primaryKey": false,
+          "createdAt": 1789900007000
+        },
+        {
+          "id": "8",
+          "name": "revoked_at",
+          "type": {
+            "id": "bigint",
+            "name": "bigint"
+          },
+          "unique": false,
+          "nullable": true,
+          "primaryKey": false,
+          "createdAt": 1789900008000
+        }
+      ],
+      "indexes": [
+        {
+          "id": "10",
+          "name": "",
+          "fieldIds": [
+            "4"
+          ],
+          "unique": true,
+          "isPrimaryKey": true,
+          "createdAt": 1789900009000
+        },
+        {
+          "id": "11",
+          "name": "sessions_by_steam_id",
+          "fieldIds": [
+            "5"
+          ],
+          "unique": false,
+          "isPrimaryKey": false,
+          "createdAt": 1789900010000
+        }
+      ],
+      "color": "#8eb7ff",
+      "createdAt": 1789900011000,
+      "isView": false,
+      "order": 1,
+      "schema": "public"
+    },
+    {
+      "id": "17",
+      "name": "game_queue",
+      "x": -1180,
+      "y": -620,
+      "fields": [
+        {
+          "id": "12",
+          "name": "id",
+          "type": {
+            "id": "bigint",
+            "name": "bigint"
+          },
+          "unique": true,
+          "nullable": false,
+          "primaryKey": true,
+          "createdAt": 1789900012000,
+          "increment": true
+        },
+        {
+          "id": "13",
+          "name": "user_id",
+          "type": {
+            "id": "bigint",
+            "name": "bigint"
+          },
+          "unique": false,
+          "nullable": false,
+          "primaryKey": false,
+          "createdAt": 1789900013000
+        },
+        {
+          "id": "14",
+          "name": "game_id",
+          "type": {
+            "id": "int",
+            "name": "int"
+          },
+          "unique": false,
+          "nullable": false,
+          "primaryKey": false,
+          "createdAt": 1789900014000
+        },
+        {
+          "id": "15",
+          "name": "priority",
+          "type": {
+            "id": "int",
+            "name": "int"
+          },
+          "unique": false,
+          "nullable": false,
+          "primaryKey": false,
+          "createdAt": 1789900015000
+        },
+        {
+          "id": "16",
+          "name": "enqueued_at",
+          "type": {
+            "id": "bigint",
+            "name": "bigint"
+          },
+          "unique": false,
+          "nullable": false,
+          "primaryKey": false,
+          "createdAt": 1789900016000
+        }
+      ],
+      "indexes": [
+        {
+          "id": "18",
+          "name": "",
+          "fieldIds": [
+            "12"
+          ],
+          "unique": true,
+          "isPrimaryKey": true,
+          "createdAt": 1789900017000
+        },
+        {
+          "id": "19",
+          "name": "game_queue_user_game_unique",
+          "fieldIds": [
+            "13",
+            "14"
+          ],
+          "unique": true,
+          "isPrimaryKey": false,
+          "createdAt": 1789900018000
+        },
+        {
+          "id": "20",
+          "name": "game_queue_by_game",
+          "fieldIds": [
+            "14",
+            "15",
+            "16"
+          ],
+          "unique": false,
+          "isPrimaryKey": false,
+          "createdAt": 1789900019000
+        }
+      ],
+      "color": "#8eb7ff",
+      "createdAt": 1789900020000,
+      "isView": false,
+      "order": 2,
+      "schema": "public"
+    },
+    {
+      "id": "24",
+      "name": "conversations",
+      "x": -400,
+      "y": -560,
+      "fields": [
+        {
+          "id": "21",
+          "name": "id",
+          "type": {
+            "id": "bigint",
+            "name": "bigint"
+          },
+          "unique": true,
+          "nullable": false,
+          "primaryKey": true,
+          "createdAt": 1789900021000,
+          "increment": true
+        },
+        {
+          "id": "22",
+          "name": "kind",
+          "type": {
+            "id": "text",
+            "name": "text"
+          },
+          "unique": false,
+          "nullable": false,
+          "primaryKey": false,
+          "createdAt": 1789900022000
+        },
+        {
+          "id": "23",
+          "name": "created_at",
+          "type": {
+            "id": "bigint",
+            "name": "bigint"
+          },
+          "unique": false,
+          "nullable": false,
+          "primaryKey": false,
+          "createdAt": 1789900023000
+        }
+      ],
+      "indexes": [
+        {
+          "id": "25",
+          "name": "",
+          "fieldIds": [
+            "21"
+          ],
+          "unique": true,
+          "isPrimaryKey": true,
+          "createdAt": 1789900024000
+        }
+      ],
+      "color": "#8eb7ff",
+      "createdAt": 1789900025000,
+      "isView": false,
+      "order": 3,
+      "schema": "public"
+    },
+    {
+      "id": "30",
+      "name": "chat",
+      "x": -400,
+      "y": -300,
+      "fields": [
+        {
+          "id": "26",
+          "name": "conversation_id",
+          "type": {
+            "id": "bigint",
+            "name": "bigint"
+          },
+          "unique": true,
+          "nullable": false,
+          "primaryKey": true,
+          "createdAt": 1789900026000
+        },
+        {
+          "id": "27",
+          "name": "kind",
+          "type": {
+            "id": "text",
+            "name": "text"
+          },
+          "unique": false,
+          "nullable": false,
+          "primaryKey": false,
+          "createdAt": 1789900027000
+        },
+        {
+          "id": "28",
+          "name": "member_a",
+          "type": {
+            "id": "bigint",
+            "name": "bigint"
+          },
+          "unique": false,
+          "nullable": false,
+          "primaryKey": false,
+          "createdAt": 1789900028000
+        },
+        {
+          "id": "29",
+          "name": "member_b",
+          "type": {
+            "id": "bigint",
+            "name": "bigint"
+          },
+          "unique": false,
+          "nullable": false,
+          "primaryKey": false,
+          "createdAt": 1789900029000
+        }
+      ],
+      "indexes": [
+        {
+          "id": "31",
+          "name": "",
+          "fieldIds": [
+            "26"
+          ],
+          "unique": true,
+          "isPrimaryKey": true,
+          "createdAt": 1789900030000
+        },
+        {
+          "id": "32",
+          "name": "chat_members_unique",
+          "fieldIds": [
+            "28",
+            "29"
+          ],
+          "unique": true,
+          "isPrimaryKey": false,
+          "createdAt": 1789900031000
+        },
+        {
+          "id": "33",
+          "name": "chat_by_member_a",
+          "fieldIds": [
+            "28"
+          ],
+          "unique": false,
+          "isPrimaryKey": false,
+          "createdAt": 1789900032000
+        },
+        {
+          "id": "34",
+          "name": "chat_by_member_b",
+          "fieldIds": [
+            "29"
+          ],
+          "unique": false,
+          "isPrimaryKey": false,
+          "createdAt": 1789900033000
+        }
+      ],
+      "color": "#8eb7ff",
+      "createdAt": 1789900034000,
+      "isView": false,
+      "order": 4,
+      "schema": "public"
+    },
+    {
+      "id": "38",
+      "name": "palette",
+      "x": -400,
+      "y": -20,
+      "fields": [
+        {
+          "id": "35",
+          "name": "conversation_id",
+          "type": {
+            "id": "bigint",
+            "name": "bigint"
+          },
+          "unique": true,
+          "nullable": false,
+          "primaryKey": true,
+          "createdAt": 1789900035000
+        },
+        {
+          "id": "36",
+          "name": "kind",
+          "type": {
+            "id": "text",
+            "name": "text"
+          },
+          "unique": false,
+          "nullable": false,
+          "primaryKey": false,
+          "createdAt": 1789900036000
+        },
+        {
+          "id": "37",
+          "name": "name",
+          "type": {
+            "id": "text",
+            "name": "text"
+          },
+          "unique": false,
+          "nullable": false,
+          "primaryKey": false,
+          "createdAt": 1789900037000
+        }
+      ],
+      "indexes": [
+        {
+          "id": "39",
+          "name": "",
+          "fieldIds": [
+            "35"
+          ],
+          "unique": true,
+          "isPrimaryKey": true,
+          "createdAt": 1789900038000
+        }
+      ],
+      "color": "#8eb7ff",
+      "createdAt": 1789900039000,
+      "isView": false,
+      "order": 5,
+      "schema": "public"
+    },
+    {
+      "id": "43",
+      "name": "members",
+      "x": -820,
+      "y": -20,
+      "fields": [
+        {
+          "id": "40",
+          "name": "palette_id",
+          "type": {
+            "id": "bigint",
+            "name": "bigint"
+          },
+          "unique": false,
+          "nullable": false,
+          "primaryKey": true,
+          "createdAt": 1789900040000
+        },
+        {
+          "id": "41",
+          "name": "user_id",
+          "type": {
+            "id": "bigint",
+            "name": "bigint"
+          },
+          "unique": false,
+          "nullable": false,
+          "primaryKey": true,
+          "createdAt": 1789900041000
+        },
+        {
+          "id": "42",
+          "name": "joined_at",
+          "type": {
+            "id": "bigint",
+            "name": "bigint"
+          },
+          "unique": false,
+          "nullable": false,
+          "primaryKey": false,
+          "createdAt": 1789900042000
+        }
+      ],
+      "indexes": [
+        {
+          "id": "44",
+          "name": "",
+          "fieldIds": [
+            "40",
+            "41"
+          ],
+          "unique": true,
+          "isPrimaryKey": true,
+          "createdAt": 1789900043000
+        },
+        {
+          "id": "45",
+          "name": "members_by_user_id",
+          "fieldIds": [
+            "41"
+          ],
+          "unique": false,
+          "isPrimaryKey": false,
+          "createdAt": 1789900044000
+        }
+      ],
+      "color": "#8eb7ff",
+      "createdAt": 1789900045000,
+      "isView": false,
+      "order": 6,
+      "schema": "public"
+    },
+    {
+      "id": "51",
+      "name": "message_data",
+      "x": 40,
+      "y": -560,
+      "fields": [
+        {
+          "id": "46",
+          "name": "id",
+          "type": {
+            "id": "bigint",
+            "name": "bigint"
+          },
+          "unique": true,
+          "nullable": false,
+          "primaryKey": true,
+          "createdAt": 1789900046000,
+          "increment": true
+        },
+        {
+          "id": "47",
+          "name": "conversation_id",
+          "type": {
+            "id": "bigint",
+            "name": "bigint"
+          },
+          "unique": false,
+          "nullable": false,
+          "primaryKey": false,
+          "createdAt": 1789900047000
+        },
+        {
+          "id": "48",
+          "name": "sender_steam_id",
+          "type": {
+            "id": "bigint",
+            "name": "bigint"
+          },
+          "unique": false,
+          "nullable": false,
+          "primaryKey": false,
+          "createdAt": 1789900048000
+        },
+        {
+          "id": "49",
+          "name": "text_message",
+          "type": {
+            "id": "text",
+            "name": "text"
+          },
+          "unique": false,
+          "nullable": false,
+          "primaryKey": false,
+          "createdAt": 1789900049000
+        },
+        {
+          "id": "50",
+          "name": "sent_at",
+          "type": {
+            "id": "bigint",
+            "name": "bigint"
+          },
+          "unique": false,
+          "nullable": false,
+          "primaryKey": false,
+          "createdAt": 1789900050000
+        }
+      ],
+      "indexes": [
+        {
+          "id": "52",
+          "name": "",
+          "fieldIds": [
+            "46"
+          ],
+          "unique": true,
+          "isPrimaryKey": true,
+          "createdAt": 1789900051000
+        },
+        {
+          "id": "53",
+          "name": "message_data_by_conversation_id",
+          "fieldIds": [
+            "47",
+            "46"
+          ],
+          "unique": false,
+          "isPrimaryKey": false,
+          "createdAt": 1789900052000
+        }
+      ],
+      "color": "#8eb7ff",
+      "createdAt": 1789900053000,
+      "isView": false,
+      "order": 7,
+      "schema": "public"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "54",
+      "name": "chat_conversation_id_fk",
+      "sourceSchema": "public",
+      "sourceTableId": "24",
+      "targetSchema": "public",
+      "targetTableId": "30",
+      "sourceFieldId": "21",
+      "targetFieldId": "26",
+      "sourceCardinality": "one",
+      "targetCardinality": "one",
+      "createdAt": 1789900054000
+    },
+    {
+      "id": "55",
+      "name": "palette_conversation_id_fk",
+      "sourceSchema": "public",
+      "sourceTableId": "24",
+      "targetSchema": "public",
+      "targetTableId": "38",
+      "sourceFieldId": "21",
+      "targetFieldId": "35",
+      "sourceCardinality": "one",
+      "targetCardinality": "one",
+      "createdAt": 1789900055000
+    },
+    {
+      "id": "56",
+      "name": "message_data_conversation_id_fk",
+      "sourceSchema": "public",
+      "sourceTableId": "24",
+      "targetSchema": "public",
+      "targetTableId": "51",
+      "sourceFieldId": "21",
+      "targetFieldId": "47",
+      "sourceCardinality": "one",
+      "targetCardinality": "many",
+      "createdAt": 1789900056000
+    },
+    {
+      "id": "57",
+      "name": "chat_member_a_fk",
+      "sourceSchema": "public",
+      "sourceTableId": "2",
+      "targetSchema": "public",
+      "targetTableId": "30",
+      "sourceFieldId": "1",
+      "targetFieldId": "28",
+      "sourceCardinality": "one",
+      "targetCardinality": "many",
+      "createdAt": 1789900057000
+    },
+    {
+      "id": "58",
+      "name": "chat_member_b_fk",
+      "sourceSchema": "public",
+      "sourceTableId": "2",
+      "targetSchema": "public",
+      "targetTableId": "30",
+      "sourceFieldId": "1",
+      "targetFieldId": "29",
+      "sourceCardinality": "one",
+      "targetCardinality": "many",
+      "createdAt": 1789900058000
+    },
+    {
+      "id": "59",
+      "name": "message_data_sender_fk",
+      "sourceSchema": "public",
+      "sourceTableId": "2",
+      "targetSchema": "public",
+      "targetTableId": "51",
+      "sourceFieldId": "1",
+      "targetFieldId": "48",
+      "sourceCardinality": "one",
+      "targetCardinality": "many",
+      "createdAt": 1789900059000
+    },
+    {
+      "id": "60",
+      "name": "sessions_steam_id_fk",
+      "sourceSchema": "public",
+      "sourceTableId": "2",
+      "targetSchema": "public",
+      "targetTableId": "9",
+      "sourceFieldId": "1",
+      "targetFieldId": "5",
+      "sourceCardinality": "one",
+      "targetCardinality": "many",
+      "createdAt": 1789900060000
+    },
+    {
+      "id": "61",
+      "name": "members_user_id_fk",
+      "sourceSchema": "public",
+      "sourceTableId": "2",
+      "targetSchema": "public",
+      "targetTableId": "43",
+      "sourceFieldId": "1",
+      "targetFieldId": "41",
+      "sourceCardinality": "one",
+      "targetCardinality": "many",
+      "createdAt": 1789900061000
+    },
+    {
+      "id": "62",
+      "name": "game_queue_user_id_fk",
+      "sourceSchema": "public",
+      "sourceTableId": "2",
+      "targetSchema": "public",
+      "targetTableId": "17",
+      "sourceFieldId": "1",
+      "targetFieldId": "13",
+      "sourceCardinality": "one",
+      "targetCardinality": "many",
+      "createdAt": 1789900062000
+    },
+    {
+      "id": "63",
+      "name": "members_palette_id_fk",
+      "sourceSchema": "public",
+      "sourceTableId": "38",
+      "targetSchema": "public",
+      "targetTableId": "43",
+      "sourceFieldId": "35",
+      "targetFieldId": "40",
+      "sourceCardinality": "one",
+      "targetCardinality": "many",
+      "createdAt": 1789900063000
+    }
+  ],
+  "dependencies": [],
+  "areas": [],
+  "customTypes": [],
+  "notes": []
+}

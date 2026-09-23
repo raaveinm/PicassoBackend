@@ -147,3 +147,16 @@ footer a { color: var(--md-primary); }
     outline: 3px solid var(--md-primary);
     outline-offset: 2px;
 }
+
+/* Small legal/trademark note, reused wherever a disclaimer is needed. */
+.disclaimer {
+    margin: 1.5rem 0 0;
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    background: var(--md-surface-container-low);
+    border: 1px solid var(--md-outline-variant);
+    color: var(--md-on-surface-variant);
+    font-size: 0.75rem;
+    line-height: 1.125rem;
+    max-width: 42rem;
+}

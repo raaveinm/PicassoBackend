@@ -33,8 +33,9 @@
             <li>C++20</li>
             <li>oat++ 1.3.0</li>
             <li>Conan</li>
-            <li>PostgreSQL (planned)</li>
+            <li>PostgreSQL</li>
             <li>WebSocket</li>
+            <li>Docker</li>
         </ul>
 
         <div class="actions">
@@ -42,6 +43,12 @@
             <a class="btn outlined" href="https://github.com/raaveinm/pickusall">Frontend repository</a>
             <a class="btn outlined" href="/docs">Docs</a>
         </div>
+
+        <p class="disclaimer">
+            picassobackend and PickUsAll (Picasso) are an independent project and are not associated with,
+            endorsed by, or sponsored by Valve Corporation. Steam and any related trademarks are the
+            property of Valve Corporation.
+        </p>
     </section>
 
     <section>
@@ -81,22 +88,22 @@
             </li>
             <li>
                 <span class="step">WS transport</span>
-                <span class="note">Hub, session and codec exist; dispatch still needs to reach the services.</span>
+                <span class="note">SDP/ICE/hangup frames relay end to end; chat and call-invite frames are still parsed and logged only.</span>
                 <span class="state">In progress</span>
             </li>
             <li>
                 <span class="step">Auth</span>
-                <span class="note">Steam OpenID and session tokens, validated on WebSocket upgrade.</span>
-                <span class="state">Planned</span>
+                <span class="note">A temporary stand-in trusts any numeric bearer token as the steamId, unblocking testing. Real Steam OpenID verification isn't built yet.</span>
+                <span class="state">In progress</span>
             </li>
             <li>
                 <span class="step">Storage</span>
-                <span class="note">Schema, migrations, repositories and the REST history endpoint.</span>
-                <span class="state">Planned</span>
+                <span class="note">Schema migrations and Postgres repositories are wired in and run on startup; chat/call services don't call them yet, so nothing is written through the API.</span>
+                <span class="state">In progress</span>
             </li>
             <li>
                 <span class="step">RTC signaling</span>
-                <span class="note">Membership checks plus forwarding between call participants.</span>
+                <span class="note">Forwarding works, but relays to any steamId with no conversation-membership check — an open relay until that guard lands.</span>
                 <span class="state">Planned</span>
             </li>
         </ul>
@@ -110,6 +117,12 @@
                 <code>PICASSO_PORT</code> move it. <code>GET /ping</code> answers <code>pong</code> with an
                 <code>X-Service-Status: Healthy</code> header — endpoints that are not built yet reply with a
                 uniform 501 naming the roadmap step they are waiting on.
+            </p>
+            <p>
+                Startup now requires a reachable Postgres at <code>PICASSO_DB_DSN</code>: it applies the schema
+                migration and connects the repositories before the server serves any traffic. A
+                <code>docker-compose.yaml</code> in the repository brings up Postgres, the backend, and a
+                monitoring stack (Caddy, Prometheus, Grafana) together — see <a href="/docs#build">the docs</a>.
             </p>
         </article>
     </section>
