@@ -4,14 +4,19 @@
 
 #pragma once
 
+#include <memory>
 #include <string>
 
+#include "PicassoDatabaseClient.hpp"
 #include "domain/ports/SessionRepository.hpp"
 
 namespace picasso::storage {
     class PgSessionRepository final : public domain::SessionRepository {
+        const std::string TAG{"SESSION_REPOSITORY"};
     public:
-        explicit PgSessionRepository(std::string dsn);
+        explicit PgSessionRepository(std::shared_ptr<PicassoDatabaseClient> db)
+            : db_(std::move(db)) {
+        }
 
         void store(const domain::Session& session) override;
 
@@ -20,6 +25,6 @@ namespace picasso::storage {
         void revoke(const std::string& tokenHash) override;
 
     private:
-        std::string dsn_;
+        std::shared_ptr<PicassoDatabaseClient> db_;
     };
 } // namespace picasso::storage

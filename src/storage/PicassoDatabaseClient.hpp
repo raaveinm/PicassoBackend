@@ -12,8 +12,8 @@
 #include OATPP_CODEGEN_BEGIN(DbClient)
 
 namespace picasso::storage {
-    constexpr std::string DATABASE_NAME = "picasso_database";
-    constexpr std::string TAG = "database_client";
+    const std::string DATABASE_NAME = "picasso_database";
+    const std::string DATABASE_TAG = "DATABASE_CLIENT";
 
     ///////////////////////////////////////////////
     /// Migration Client
@@ -28,7 +28,7 @@ namespace picasso::storage {
             migration.addFile(/*ver*/ 1, /*filename*/DATABASE_MIGRATIONS "/0001_init.sql" );
             migration.migrate();
 
-            OATPP_LOGD(TAG, "Database client initialized, schema version: %ld", executor->getSchemaVersion(DATABASE_NAME));
+            OATPP_LOGD(DATABASE_TAG, "Database client initialized, schema version: %ld", executor->getSchemaVersion(DATABASE_NAME));
         }
 
         ///////////////////////////////////////////////
@@ -42,7 +42,7 @@ namespace picasso::storage {
         QUERY(insertMessage,
             "INSERT INTO message_data (conversation_id, sender_steam_id, text_message, sent_at) "
             "VALUES (:conversation_id, :sender_steam_id, :text_message, :sent_at) "
-            "RETURNING id;",
+            "RETURNING id AS value;",
             PARAM(oatpp::Int64, conversation_id),
             PARAM(oatpp::Int64, sender_steam_id),
             PARAM(oatpp::String, text_message),
@@ -69,17 +69,17 @@ namespace picasso::storage {
             PARAM(oatpp::Int64, steam_id))
 
         QUERY(selectMembers,
-            "SELECT member_a AS steam_id FROM chat WHERE conversation_id = :conversation_id "
+            "SELECT member_a AS value FROM chat WHERE conversation_id = :conversation_id "
             "UNION "
-            "SELECT member_b AS steam_id FROM chat WHERE conversation_id = :conversation_id "
+            "SELECT member_b AS value FROM chat WHERE conversation_id = :conversation_id "
             "UNION "
-            "SELECT user_id AS steam_id FROM members WHERE palette_id = :conversation_id;",
+            "SELECT user_id AS value FROM members WHERE palette_id = :conversation_id;",
             PARAM(oatpp::Int64, conversation_id))
 
         QUERY(selectConversationsOf,
-            "SELECT conversation_id FROM chat WHERE member_a = :steam_id OR member_b = :steam_id "
+            "SELECT conversation_id AS value FROM chat WHERE member_a = :steam_id OR member_b = :steam_id "
             "UNION "
-            "SELECT palette_id AS conversation_id FROM members WHERE user_id = :steam_id;",
+            "SELECT palette_id AS value FROM members WHERE user_id = :steam_id;",
             PARAM(oatpp::Int64, steam_id))
 
         QUERY(insertSession,

@@ -5,7 +5,6 @@
 #pragma once
 
 #include <memory>
-#include <string>
 
 #include "domain/ports/ChatRepository.hpp"
 #include "domain/ports/ConversationRepository.hpp"

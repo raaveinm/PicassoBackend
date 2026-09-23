@@ -1,4 +1,18 @@
 services:
+  postgres:
+    image: postgres:latest
+    container_name: postgres-pic
+    environment:
+      POSTGRES_DB: picasso_database
+      POSTGRES_USER: ${POSTGRES_USER:-picasso}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - monitoring
+
   backend:
     build:
       context: .
@@ -10,6 +24,9 @@ services:
       PICASSO_BIND: 0.0.0.0
       PICASSO_PORT: 8000
       PICASSO_PUBLIC_URL: ${PICASSO_PUBLIC_URL:-http://localhost:8000}
+      PICASSO_DB_DSN: "host=postgres port=5432 dbname=picasso_database user=${POSTGRES_USER:-picasso} password=${POSTGRES_PASSWORD}"
+    depends_on:
+      - postgres
     volumes:
       - ./logs:/app/logs
     restart: unless-stopped

@@ -13,9 +13,9 @@ namespace picasso::domain {
     /* Maps to the messages table; body/createdAtEpochMs are its text/timestamp columns. */
     struct Message {
         MessageId id;
-        ConversationId conversationId;
-        SteamId senderSteamId;
-        std::string body;
-        std::int64_t createdAtEpochMs{};
+        ConversationId conversation_id;
+        SteamId sender_steam_id;
+        std::string text_message;
+        std::int64_t created_at_epoch_ms;
     };
 } // namespace picasso::domain

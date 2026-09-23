@@ -6,7 +6,6 @@
 # reached past the repository interfaces and the layering is broken.
 
 add_library(picasso_storage STATIC
-        PicassoDatabaseClient.cpp
         PicassoDatabaseClient.hpp
         Repositories.cpp
         Repositories.hpp
