@@ -734,4 +734,4 @@ FodyWeavers.xsd
 /build.ninja/
 /build/
 
-.env/
+.env

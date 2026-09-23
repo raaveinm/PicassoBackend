@@ -9,7 +9,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential g++-11 gcc-11 cmake ninja-build \
     python3 python3-venv python3-pip \
-    pkg-config git ca-certificates libssl-dev \
+    pkg-config git ca-certificates libssl-dev libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -26,11 +26,14 @@ COPY main.cpp ./main.cpp
 COPY src ./src
 COPY static ./static
 
-# First-time configure can't use the conan-release preset
+# First-time configure can't use the conan-release preset.
+# -isystem /usr/include/postgresql: on Debian/Ubuntu libpq-dev installs libpq-fe.h
+# there, not directly under /usr/include, so the compiler's default search misses it.
 RUN cmake -S . -B build -G "Ninja Multi-Config" \
     -DCMAKE_C_COMPILER=/usr/bin/gcc-11 \
     -DCMAKE_CXX_COMPILER=/usr/bin/g++-11 \
     -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CXX_FLAGS="-isystem /usr/include/postgresql" \
     && cmake --build build --config Release
 
 # Runtime image
@@ -44,6 +47,9 @@ WORKDIR /app
 
 COPY --from=builder /app/build/Release/PickUsAllBackend ./build/Release/PickUsAllBackend
 COPY --from=builder /app/static ./static
+# DATABASE_MIGRATIONS is baked in at compile time as an absolute builder-image path
+# (/app/src/storage/migrations); same WORKDIR here keeps that path valid at runtime.
+COPY --from=builder /app/src/storage/migrations ./src/storage/migrations
 
 ENV PICASSO_BIND=0.0.0.0 \
     PICASSO_PORT=8000

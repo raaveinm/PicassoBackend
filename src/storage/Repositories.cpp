@@ -23,7 +23,7 @@ namespace picasso::storage {
         constexpr  std::chrono::minutes connection_ttl{ 2 };
     }
 
-    static Repositories makeRepositories(const std::string& dsn) {
+    Repositories makeRepositories(const std::string& dsn) {
         if (dsn.empty()) {
             OATPP_LOGE(DATABASE_TAG, "DATABASE FATAL ERR -> dsn is not set");
             throw std::invalid_argument("dsn is not set");

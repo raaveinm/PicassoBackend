@@ -5,6 +5,7 @@
 #pragma once
 
 #include <memory>
+#include <string>
 
 #include "domain/ports/ChatRepository.hpp"
 #include "domain/ports/ConversationRepository.hpp"
@@ -20,4 +21,6 @@ namespace picasso::storage {
         std::shared_ptr<domain::ConversationRepository> conversations;
         std::shared_ptr<domain::SessionRepository> sessions;
     };
+
+    Repositories makeRepositories(const std::string& dsn);
 } // namespace picasso::storage

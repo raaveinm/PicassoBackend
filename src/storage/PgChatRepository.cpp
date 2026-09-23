@@ -61,5 +61,7 @@ namespace picasso::storage {
                 .created_at_epoch_ms = *row->sent_at
             });
         }
+
+        return messages;
     }
 } // namespace picasso::storage
