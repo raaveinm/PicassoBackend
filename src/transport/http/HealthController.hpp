@@ -76,10 +76,12 @@ namespace picasso::transport::http {
             return fileName.find("..") == std::string::npos;
         }
 
-        std::shared_ptr<OutgoingResponse> serveStaticAsset(const oatpp::String& name,
-                                                            const std::string& subdir,
-                                                            const std::string& extension,
-                                                            const std::string& contentType) {
+        [[nodiscard]] std::shared_ptr<OutgoingResponse> serveStaticAsset(
+            const oatpp::String& name,
+            const std::string& subdir,
+            const std::string& extension,
+            const std::string& contentType
+        ) const {
             OATPP_ASSERT_HTTP(name != nullptr && isSafeAssetName(*name, extension),
                               Status::CODE_404, "not found")
 

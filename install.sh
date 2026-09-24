@@ -28,7 +28,8 @@ if [ -f /etc/os-release ]; then
 fi
 case "$OS_ID" in
     ubuntu|debian) ;;
-    *) die "supports Ubuntu/Debian only (found: ${OS_ID:-unknown}). Install Docker + the compose plugin yourself, then run: docker compose up -d --build" ;;
+    *) die "supports Ubuntu/Debian only (found: ${OS_ID:-unknown}).
+     Install Docker + the compose plugin yourself, then run: docker compose up -d --build" ;;
 esac
 
 log "Installing prerequisites (git, curl, ca-certificates)..."
@@ -41,7 +42,8 @@ if ! command -v docker >/dev/null 2>&1; then
 else
     log "Docker already installed ($(docker --version))."
 fi
-docker compose version >/dev/null 2>&1 || die "docker compose plugin missing even after install - check the Docker install above."
+docker compose version >/dev/null 2>&1 || die "docker compose
+plugin missing even after install - check the Docker install above."
 
 if [ -d "$INSTALL_DIR/.git" ]; then
     log "Existing install at $INSTALL_DIR, updating to origin/$BRANCH..."
@@ -55,7 +57,8 @@ cd "$INSTALL_DIR"
 
 # --- domain / TLS ---
 if [ -z "${PICASSO_DOMAIN:-}" ] && [ -e /dev/tty ]; then
-    read -r -p "Domain already pointed at this server's IP (blank = HTTP only, no TLS): " PICASSO_DOMAIN < /dev/tty || true
+    read -r -p "Domain already pointed at this server's IP
+    (blank = HTTP only, no TLS): " PICASSO_DOMAIN < /dev/tty || true
 fi
 PICASSO_DOMAIN="${PICASSO_DOMAIN:-:80}"
 

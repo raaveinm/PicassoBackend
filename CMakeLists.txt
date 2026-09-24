@@ -24,3 +24,10 @@ add_executable(PickUsAllBackend main.cpp)
 
 target_link_libraries(PickUsAllBackend
         PRIVATE picasso_core Boost::thread Threads::Threads)
+
+# Boost.Test suites under test/. Off with -DPICASSO_BUILD_TESTS=OFF.
+option(PICASSO_BUILD_TESTS "Build the Boost.Test suites under test/" ON)
+if(PICASSO_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(test)
+endif()

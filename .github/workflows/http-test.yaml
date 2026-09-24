@@ -1,0 +1,64 @@
+name: http-test
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  transport-http:
+    runs-on: ubuntu-22.04
+    env:
+      CC: gcc-11
+      CXX: g++-11
+      BUILD_TYPE: Release
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gcc-11 g++-11 ninja-build
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Conan
+        run: |
+          pip install conan
+          conan profile detect --force
+
+      - name: Cache Conan packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.conan2/p
+          key: conan-${{ runner.os }}-gcc11-${{ env.BUILD_TYPE }}-${{ hashFiles('conanfile.txt') }}
+
+      - name: Conan install
+        run: |
+          conan install . \
+            --output-folder=build \
+            --build=missing \
+            -s build_type=${BUILD_TYPE} \
+            -s compiler=gcc \
+            -s compiler.version=11 \
+            -s compiler.libcxx=libstdc++11 \
+            -s compiler.cppstd=20
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=build/conan_toolchain.cmake \
+            -DCMAKE_BUILD_TYPE=${BUILD_TYPE}
+
+      - name: Build
+        run: cmake --build build --target picasso_transport_http_test
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure -R picasso_transport_http_test
