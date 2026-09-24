@@ -27,13 +27,11 @@ COPY src ./src
 COPY static ./static
 
 # First-time configure can't use the conan-release preset.
-# -isystem /usr/include/postgresql: on Debian/Ubuntu libpq-dev installs libpq-fe.h
-# there, not directly under /usr/include, so the compiler's default search misses it.
 RUN cmake -S . -B build -G "Ninja Multi-Config" \
     -DCMAKE_C_COMPILER=/usr/bin/gcc-11 \
     -DCMAKE_CXX_COMPILER=/usr/bin/g++-11 \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_CXX_FLAGS="-isystem /usr/include/postgresql" \
+    -DPICASSO_BUILD_TESTS=OFF \
     && cmake --build build --config Release
 
 # Runtime image

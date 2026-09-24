@@ -17,6 +17,22 @@ jobs:
       CXX: g++-11
       BUILD_TYPE: Release
 
+    # Throwaway database for the storage tests - they TRUNCATE every table.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: picasso_test
+          POSTGRES_USER: picasso
+          POSTGRES_PASSWORD: picasso
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U picasso -d picasso_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -58,7 +74,13 @@ jobs:
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE}
 
       - name: Build
-        run: cmake --build build --target picasso_transport_http_test
+        run: cmake --build build --target picasso_transport_http_test picasso_storage_test
 
-      - name: Test
+      - name: Test Transport - HTTP
         run: ctest --test-dir build --output-on-failure -R picasso_transport_http_test
+
+      # unreachable database fails the job rather than passing it silently.
+      - name: Test Storage
+        env:
+          PICASSO_TEST_DB_DSN: "host=127.0.0.1 port=5432 dbname=picasso_test user=picasso password=picasso"
+        run: ctest --test-dir build --output-on-failure -R picasso_storage_test
