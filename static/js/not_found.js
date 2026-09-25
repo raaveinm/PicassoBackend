@@ -26,15 +26,15 @@
 
             this.durationMs = rand(9000, 27000);
             this.elapsedMs = randomizeProgress ? Math.random() * this.durationMs : 0;
-            this.radius = rand(142, 384);
+            this.radius = rand(42, 192);
 
             this.baseX = rand(0, w);
             this.baseY = rand(0, h);
 
-            this.driftFromX = rand(0, 64);
-            this.driftFromY = rand(0, 64);
-            this.driftToX = rand(0, 64);
-            this.driftToY = rand(0, 64);
+            this.driftFromX = rand(0, 128);
+            this.driftFromY = rand(0, 128);
+            this.driftToX = rand(0, 128);
+            this.driftToY = rand(0, 128);
 
             this.brushType = BRUSH_TYPES[randInt(0, BRUSH_TYPES.length - 1)];
             this.gradientSeed = {
@@ -104,7 +104,7 @@
         }
     }
 
-    const circles = Array.from({ length: 16 }, () => new AmbientCircle());
+    const circles = Array.from({ length: 18 }, () => new AmbientCircle());
     let lastTime = 0;
 
     function frame(time) {
