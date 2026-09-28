@@ -14,6 +14,8 @@ find_package(oatpp REQUIRED)
 find_package(oatpp-websocket REQUIRED)
 find_package(oatpp-postgresql REQUIRED)
 find_package(Boost REQUIRED CONFIG COMPONENTS thread)
+find_package(oatpp-openssl REQUIRED)
+find_package(OpenSSL REQUIRED)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
