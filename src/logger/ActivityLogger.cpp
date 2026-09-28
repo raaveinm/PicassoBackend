@@ -10,9 +10,9 @@
 
 namespace picasso::logger {
     namespace {
-        constexpr std::string_view kFilePrefix = "log_file";
-        constexpr std::string_view kFileSuffix = ".csv";
-        constexpr std::string_view kCsvHeader = "timestamp,level,component,message\n";
+        constexpr std::string_view FILE_PREFIX = "log_file";
+        constexpr std::string_view FILE_SUFFIX = ".csv";
+        constexpr std::string_view CSV_HEADER = "timestamp,level,component,message\n";
     } // namespace
 
     ActivityLogger::ActivityLogger(std::filesystem::path directory, const int retentionDays)
@@ -88,13 +88,13 @@ namespace picasso::logger {
             }
 
             const std::string name = entry.path().filename().string();
-            if (!name.starts_with(kFilePrefix) || !name.ends_with(kFileSuffix) ||
-                name.size() <= kFilePrefix.size() + kFileSuffix.size()) {
+            if (!name.starts_with(FILE_PREFIX) || !name.ends_with(FILE_SUFFIX) ||
+                name.size() <= FILE_PREFIX.size() + FILE_SUFFIX.size()) {
                 continue;
             }
 
             const std::string stamp = name.substr(
-                kFilePrefix.size(), name.size() - kFilePrefix.size() - kFileSuffix.size());
+                FILE_PREFIX.size(), name.size() - FILE_PREFIX.size() - FILE_SUFFIX.size());
             const auto parsed = parseDateStamp(stamp);
             if (!parsed) {
                 continue;
@@ -119,12 +119,12 @@ namespace picasso::logger {
             file_.close();
         }
 
-        const auto path = directory_ / (std::string(kFilePrefix) + stamp + std::string(kFileSuffix));
+        const auto path = directory_ / (std::string(FILE_PREFIX) + stamp + std::string(FILE_SUFFIX));
         const bool isNewFile = !std::filesystem::exists(path);
 
         file_.open(path, std::ios::app);
         if (isNewFile) {
-            file_ << kCsvHeader;
+            file_ << CSV_HEADER;
         }
 
         currentStamp_ = stamp;

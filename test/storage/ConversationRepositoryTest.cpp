@@ -65,6 +65,7 @@ BOOST_FIXTURE_TEST_SUITE(
         const auto bob = user(76561198000000002ULL);
         const auto carol = user(76561198000000003ULL);
         // ReSharper disable once CppExpressionWithoutSideEffects
+        // ReSharper disable once CppNoDiscardExpression
         dm(alice, bob);
         const auto palette_id = palette({carol});
 

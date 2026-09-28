@@ -12,7 +12,7 @@
 
 namespace picasso::storage {
     class PgSessionRepository final : public domain::SessionRepository {
-        const std::string TAG{"SESSION_REPOSITORY"};
+        const std::string STORAGE_TAG{"SESSION_REPOSITORY"};
     public:
         explicit PgSessionRepository(std::shared_ptr<PicassoDatabaseClient> db)
             : db_(std::move(db)) {

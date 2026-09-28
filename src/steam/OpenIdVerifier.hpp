@@ -2,6 +2,8 @@
 // Created by Kirill "Raaveinm" on 9/9/26.
 //
 
+// otherwise throws an compilation err
+// ReSharper disable CppVariableCanBeMadeConstexpr
 #pragma once
 
 #include <map>
@@ -11,7 +13,7 @@
 #include "domain/Ids.hpp"
 
 namespace picasso::steam {
-    constexpr std::string TAG_OPENID("OPEN_ID_VERIFIER");
+    const std::string TAG_OPENID{"OPEN_ID_VERIFIER"};
 
     /**
      * The one Steam-facing job this server has. The client talks to Steam's Web API

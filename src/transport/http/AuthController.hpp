@@ -17,11 +17,7 @@
 #include OATPP_CODEGEN_BEGIN(ApiController)
 
 namespace picasso::transport::http {
-    /*
-     * Steam OpenID login. Both endpoints currently reach a stub that throws, so they
-     * answer 501 - the URL shape is fixed and the client can be written against it,
-     * but nothing authenticates yet (roadmap step 3).
-     */
+    /* Steam OpenID login: begin redirects to Steam, return verifies the assertion. */
     class AuthController : public oatpp::web::server::api::ApiController {
     public:
         AuthController(const std::shared_ptr<ObjectMapper>& objectMapper,
@@ -31,7 +27,7 @@ namespace picasso::transport::http {
         ENDPOINT("GET", "/auth/steam/begin", authBegin) {
             const auto response = createResponse(Status::CODE_302, "");
             /* oat++ 1.3.0's Header has no LOCATION constant - only CONTENT_TYPE and AUTHORIZATION. */
-            response->putHeader("Location", service::AuthService::beginLoginUrl().c_str());
+            response->putHeader("Location", auth_->beginLoginUrl().c_str());
             return response;
         }
 
@@ -47,7 +43,7 @@ namespace picasso::transport::http {
                 params.emplace(*name.toString(), *value.toString());
             }
 
-            const auto issued = service::AuthService::completeLogin(params);
+            const auto issued = auth_->completeLogin(params);
             OATPP_ASSERT_HTTP(issued.has_value(), Status::CODE_401, "steam assertion rejected")
 
             const auto body = dto::AuthTokenDto::createShared();

@@ -2,6 +2,8 @@
 // Created by raaveinm on 9/19/26.
 //
 
+// otherwise throws an compilation err
+// ReSharper disable CppVariableCanBeMadeConstexpr
 #ifndef PICKUSALLBACKEND_PICASSODATABASECLIENT_HPP
 #define PICKUSALLBACKEND_PICASSODATABASECLIENT_HPP
 
@@ -36,7 +38,7 @@ namespace picasso::storage {
         ///////////////////////////////////////////////
 
         QUERY(createUser,
-            "INSERT INTO users VALUES (:steam_id);",
+            "INSERT INTO users VALUES (:steam_id) ON CONFLICT (steam_id) DO NOTHING;",
             PARAM(oatpp::Int64, steam_id))
 
         QUERY(insertMessage,

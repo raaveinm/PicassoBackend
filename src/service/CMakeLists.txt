@@ -11,8 +11,6 @@ add_library(picasso_service STATIC
         AuthService.cpp
         AuthService.hpp)
 
-# picasso_storage is PUBLIC only for the Repositories struct in the makeServices
-# signature. If that ever turns into a real dependency on a Pg* class, the layering
-# has been broken - services must stay behind the ports.
 target_link_libraries(picasso_service
-        PUBLIC picasso_base picasso_domain picasso_steam picasso_storage)
+        PUBLIC picasso_base picasso_domain picasso_steam picasso_storage
+        PRIVATE OpenSSL::Crypto)

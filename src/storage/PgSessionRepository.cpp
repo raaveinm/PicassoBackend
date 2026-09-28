@@ -12,27 +12,40 @@
 
 namespace picasso::storage {
     void PgSessionRepository::store(const domain::Session& session) {
+        auto transaction = db_->beginTransaction();
+        const auto connection = transaction.getConnection();
+
+        const auto userResult = db_->createUser(
+            oatpp::Int64(static_cast<v_int64>(session.steam_id.value())), connection);
+        if (!userResult->isSuccess()) {
+            OATPP_LOGE(STORAGE_TAG, ("PgSessionRepository::store: " + *userResult->getErrorMessage()).c_str());
+            throw std::runtime_error("PgSessionRepository::store (createUser): " + *userResult->getErrorMessage());
+        }
+
         const oatpp::Int64 revokedAt = session.revoke_at_epoch_ms
-            ? oatpp::Int64(*session.revoke_at_epoch_ms)
-            : oatpp::Int64();
+        ? oatpp::Int64(*session.revoke_at_epoch_ms)
+        : oatpp::Int64();
 
         const auto result = db_->insertSession(
             oatpp::String(session.token_hash),
             oatpp::Int64(static_cast<v_int64>(session.steam_id.value())),
             oatpp::Int64(session.created_at_epoch_ms),
             oatpp::Int64(session.expires_at_epoch_ms),
-            revokedAt);
+            revokedAt,
+            connection);
 
         if (!result->isSuccess()) {
-            OATPP_LOGE(TAG, ("PgSessionRepository::store: " + *result->getErrorMessage()).c_str());
-            throw std::runtime_error("PgSessionRepository::store: " + *result->getErrorMessage());
+            OATPP_LOGE(STORAGE_TAG, ("PgSessionRepository::store: " + *result->getErrorMessage()).c_str());
+            throw std::runtime_error("PgSessionRepository::store (insertSession): " + *result->getErrorMessage());
         }
+
+        transaction.commit();
     }
 
     std::optional<domain::Session> PgSessionRepository::findByTokenHash(const std::string& tokenHash) {
         const auto result = db_->selectSessionByHash(oatpp::String(tokenHash));
         if (!result->isSuccess()) {
-            OATPP_LOGE(TAG, ("PgSessionRepository::findByTokenHash: " + *result->getErrorMessage()).c_str());
+            OATPP_LOGE(STORAGE_TAG, ("PgSessionRepository::findByTokenHash: " + *result->getErrorMessage()).c_str());
             throw std::runtime_error("PgSessionRepository::findByTokenHash: " + *result->getErrorMessage());
         }
 
@@ -54,7 +67,7 @@ namespace picasso::storage {
     void PgSessionRepository::revoke(const std::string& tokenHash) {
         const auto result = db_->revokeSession(oatpp::String(tokenHash), oatpp::Int64(domain::nowEpochMs()));
         if (!result->isSuccess()) {
-            OATPP_LOGE(TAG, ("pgSessionRepository::revoke: " + *result->getErrorMessage()).c_str());
+            OATPP_LOGE(STORAGE_TAG, ("pgSessionRepository::revoke: " + *result->getErrorMessage()).c_str());
             throw std::runtime_error("PgSessionRepository::revoke: " + *result->getErrorMessage());
         }
     }
