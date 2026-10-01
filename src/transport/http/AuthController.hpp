@@ -91,9 +91,6 @@ namespace picasso::transport::http {
                     std::isxdigit(static_cast<unsigned char>(in[i + 2]))) {
                     out.push_back(static_cast<char>(std::stoi(std::string{in.substr(i + 1, 2)}, nullptr, 16)));
                     i += 2;
-                } else if (in[i] == '+') {
-                    /* Form-urlencoded: a literal '+' in a query string is a space. */
-                    out.push_back(' ');
                 } else {
                     out.push_back(in[i]);
                 }

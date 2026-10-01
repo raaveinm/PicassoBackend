@@ -31,5 +31,7 @@ namespace picasso::app {
         transport::ws::WsEndpoint wsEndpoint;
     };
 
-    Components buildComponents(const Config& config);
+    /// `activityLogger` is created by `run()` before `Environment::init`, so that the
+    /// CSV sink is already installed by the time anything calls `OATPP_LOG*`.
+    Components buildComponents(const Config& config, std::shared_ptr<logger::ActivityLogger> activityLogger);
 } // namespace picasso::app

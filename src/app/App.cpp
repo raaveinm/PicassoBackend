@@ -5,6 +5,8 @@
 #include "app/App.hpp"
 
 #include <exception>
+#include <memory>
+#include <utility>
 
 #include "oatpp/core/base/Environment.hpp"
 #include "oatpp/parser/json/mapping/ObjectMapper.hpp"
@@ -12,6 +14,7 @@
 #include "app/Components.hpp"
 #include "app/Config.hpp"
 #include "app/ServerRunner.hpp"
+#include "logger/CsvLogger.hpp"
 #include "transport/http/HttpModule.hpp"
 
 namespace picasso::app {
@@ -19,14 +22,14 @@ namespace picasso::app {
         const std::string TAG = "oatpp-core-app";
     }
 
-    Components buildComponents(const Config& config) {
+    Components buildComponents(const Config& config, std::shared_ptr<logger::ActivityLogger> activityLogger) {
         Components components;
         components.config = config;
 
         components.objectMapper = oatpp::parser::json::mapping::ObjectMapper::createShared();
         components.router = oatpp::web::server::HttpRouter::createShared();
 
-        components.activityLogger = std::make_shared<logger::ActivityLogger>();
+        components.activityLogger = std::move(activityLogger);
 
         components.repositories = storage::makeRepositories(config.databaseDsn);
 
@@ -46,7 +49,8 @@ namespace picasso::app {
     }
 
     int run() {
-        oatpp::base::Environment::init();
+        const auto activityLogger = std::make_shared<logger::ActivityLogger>();
+        oatpp::base::Environment::init(std::make_shared<logger::CsvLogger>(activityLogger));
 
         int exitCode;
         try {
@@ -59,7 +63,7 @@ namespace picasso::app {
             + "\n  logLevel :" + config.logLevel
             + "\n}";
             OATPP_LOGI(TAG, config_message.c_str());
-            auto components = buildComponents(config);
+            auto components = buildComponents(config, activityLogger);
             exitCode = serve(components);
         } catch (const std::exception& error) {
             OATPP_LOGE(TAG, "startup failed: %s", error.what());

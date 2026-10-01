@@ -4,7 +4,9 @@
 
 #include "steam/OpenIdVerifier.hpp"
 
+#include <algorithm>
 #include <sstream>
+#include <string>
 
 #include "oatpp/network/tcp/client/ConnectionProvider.hpp"
 #include "oatpp/web/client/HttpRequestExecutor.hpp"
@@ -54,7 +56,7 @@ namespace picasso::steam {
 
         std::ostringstream url;
         url << "https://" << kSteamHost << kSteamLoginPath << "?"
-            << "openid.ns=" << percentEncode(R"(https://specs.openid.net/auth/2.0)")
+            << "openid.ns=" << percentEncode(R"(http://specs.openid.net/auth/2.0)")
             << "&openid.mode=checkid_setup"
             << "&openid.return_to=" << percentEncode(returnTo)
             << "&openid.realm=" << percentEncode(publicUrl_)
@@ -65,6 +67,14 @@ namespace picasso::steam {
     }
 
     std::optional<domain::SteamId> OpenIdVerifier::verify(const std::map<std::string, std::string>& params) {
+        if (const auto modeIt = params.find("openid.mode");
+            modeIt != params.end() && modeIt->second == "error") {
+            const auto errIt = params.find("openid.error");
+            OATPP_LOGE(TAG_OPENID, "steam refused the auth request: %s",
+                       errIt != params.end() ? errIt->second.c_str() : "<no openid.error>");
+            return std::nullopt;
+        }
+
         std::map<std::string, std::string> verifyParams;
         for (const auto& [key, value] : params) {
             if (key.starts_with("openid.")) { verifyParams.emplace(key, value); }
@@ -85,20 +95,22 @@ namespace picasso::steam {
         );
 
         std::shared_ptr<oatpp::web::protocol::http::incoming::Response> response;
-        try { response = executor->executeOnce("POST", kSteamLoginPath, headers, body);
-        } catch (const std::exception&) {
-            OATPP_LOGW(TAG_OPENID, "Token hasn't been verified");
+        try { response = executor->execute("POST", kSteamLoginPath, headers, body, nullptr);
+        } catch (const std::exception& e) {
+            OATPP_LOGE(TAG_OPENID, "check_authentication POST failed: %s", e.what());
             return std::nullopt;
         }
 
         if (response->getStatusCode() != 200) {
-            OATPP_LOGE(TAG_OPENID, "External verification failed");
+            OATPP_LOGE(TAG_OPENID, "External verification failed: HTTP %d", response->getStatusCode());
             return std::nullopt;
         }
 
         const auto text = response->readBodyToString();
         if (!text || text->find("is_valid:true") == std::string::npos) {
-            OATPP_LOGW(TAG_OPENID, "validation failed");
+            std::string flat = text ? std::string{text->c_str()} : std::string{"<empty body>"};
+            std::replace(flat.begin(), flat.end(), '\n', ' ');
+            OATPP_LOGW(TAG_OPENID, "validation failed: steam said '%s'", flat.c_str());
             return std::nullopt;
         }
 
