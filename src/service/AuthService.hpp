@@ -8,8 +8,10 @@
 
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
+#include <unordered_map>
 
 #include "domain/Ids.hpp"
 #include "domain/ports/SessionRepository.hpp"
@@ -31,7 +33,7 @@ namespace picasso::service {
             std::shared_ptr<domain::SessionRepository> sessions,
             std::shared_ptr<steam::OpenIdVerifier> verifier);
 
-        [[nodiscard]] std::string beginLoginUrl() const;
+        [[nodiscard]] std::string beginLoginUrl(const std::string& state = "") const;
 
         // Verifies the Steam assertion, mints a session token
         [[nodiscard]]std::optional<IssuedToken> completeLogin(const std::map<std::string, std::string>& params) const;
@@ -43,8 +45,30 @@ namespace picasso::service {
          */
         [[nodiscard]]std::optional<domain::SteamId> authenticate(const std::string& token) const;
 
+        /* Explicit logout. Idempotent: revoking an unknown or already-revoked hash is a no-op. */
+        void logout(const std::string& token) const;
+
+        ///////////////////////////////////////////////
+        /// Pending logins (the poll handoff)
+        ///////////////////////////////////////////////
+
+        void parkLogin(const std::string& state, const IssuedToken& issued) const;
+
+        [[nodiscard]] std::optional<IssuedToken> claimLogin(const std::string& state) const;
+
     private:
+        struct PendingLogin {
+            IssuedToken issued;
+            std::int64_t parkedAtEpochMs{};
+        };
+
+        /* Caller must hold pendingMutex_. */
+        void prunePendingLocked(std::int64_t nowEpochMs) const;
+
         std::shared_ptr<domain::SessionRepository> sessions_;
         std::shared_ptr<steam::OpenIdVerifier> verifier_;
+
+        mutable std::mutex pendingMutex_;
+        mutable std::unordered_map<std::string, PendingLogin> pending_;
     };
 } // namespace picasso::service

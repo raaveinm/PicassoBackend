@@ -19,6 +19,9 @@ namespace picasso::service {
     namespace {
         constexpr std::chrono::hours SESSION_TTL{24 * 30};
 
+        /* How long a minted-but-unclaimed token waits for its app to poll for it. */
+        constexpr std::int64_t PENDING_LOGIN_TTL_MS = 5 * 60 * 1000;
+
         std::string toHex(const unsigned char* bytes, const unsigned int length) {
             static constexpr char DIGITS[] = "0123456789abcdef";
             std::string out;
@@ -63,8 +66,8 @@ namespace picasso::service {
         : sessions_(std::move(sessions)), verifier_(std::move(verifier)) {
     }
 
-    std::string AuthService::beginLoginUrl() const {
-        return verifier_->buildAuthUrl();
+    std::string AuthService::beginLoginUrl(const std::string& state) const {
+        return verifier_->buildAuthUrl(state);
     }
 
     std::optional<IssuedToken> AuthService::completeLogin(const std::map<std::string, std::string>& params) const {
@@ -92,5 +95,44 @@ namespace picasso::service {
         if (!session || !session->isUsableAt(domain::nowEpochMs())) return std::nullopt;
 
         return session->steam_id;
+    }
+
+    void AuthService::logout(const std::string& token) const {
+        sessions_->revoke(sha256Hex(stripBearerPrefix(token)));
+    }
+
+    ///////////////////////////////////////////////
+    /// Pending logins (the poll handoff)
+    ///////////////////////////////////////////////
+
+    void AuthService::prunePendingLocked(const std::int64_t nowEpochMs) const {
+        std::erase_if(pending_, [nowEpochMs](const auto& entry) {
+            return nowEpochMs - entry.second.parkedAtEpochMs > PENDING_LOGIN_TTL_MS;
+        });
+    }
+
+    void AuthService::parkLogin(const std::string& state, const IssuedToken& issued) const {
+        if (state.empty()) return;
+
+        const auto now = domain::nowEpochMs();
+        std::lock_guard lock(pendingMutex_);
+        prunePendingLocked(now);
+        pending_[state] = PendingLogin{.issued = issued, .parkedAtEpochMs = now};
+    }
+
+    std::optional<IssuedToken> AuthService::claimLogin(const std::string& state) const {
+        if (state.empty()) return std::nullopt;
+
+        const auto now = domain::nowEpochMs();
+        std::lock_guard lock(pendingMutex_);
+        prunePendingLocked(now);
+
+        const auto it = pending_.find(state);
+        if (it == pending_.end()) return std::nullopt;
+
+        /* Single use: a second poll with the same nonce gets nothing. */
+        auto issued = it->second.issued;
+        pending_.erase(it);
+        return issued;
     }
 } // namespace picasso::service

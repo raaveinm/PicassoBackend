@@ -25,7 +25,13 @@ namespace picasso::steam {
     public:
         explicit OpenIdVerifier(std::string publicUrl) : publicUrl_(std::move(publicUrl)) {}
 
-        [[nodiscard]] std::string buildAuthUrl() const;
+        /**
+         * `state` is the client's one-time login nonce. It rides along in the
+         * `return_to` query string, so Steam echoes it back on the redirect and
+         * `/auth/steam/return` can tell which waiting client the minted token
+         * belongs to. Empty means "no nonce" (browser-only login, nothing to claim).
+         */
+        [[nodiscard]] std::string buildAuthUrl(const std::string& state = "") const;
 
         /**
          * Posts the assertion back to Steam with mode=check_authentication and

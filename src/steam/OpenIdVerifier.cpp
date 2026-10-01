@@ -46,8 +46,11 @@ namespace picasso::steam {
         }
     } // namespace
 
-    std::string OpenIdVerifier::buildAuthUrl() const {
-        const std::string returnTo = publicUrl_ + "/auth/steam/return";
+    std::string OpenIdVerifier::buildAuthUrl(const std::string& state) const {
+
+        const std::string returnTo = state.empty()
+            ? publicUrl_ + "/auth/steam/return"
+            : publicUrl_ + "/auth/steam/return?state=" + percentEncode(state);
 
         std::ostringstream url;
         url << "https://" << kSteamHost << kSteamLoginPath << "?"
@@ -62,7 +65,10 @@ namespace picasso::steam {
     }
 
     std::optional<domain::SteamId> OpenIdVerifier::verify(const std::map<std::string, std::string>& params) {
-        auto verifyParams = params;
+        std::map<std::string, std::string> verifyParams;
+        for (const auto& [key, value] : params) {
+            if (key.starts_with("openid.")) { verifyParams.emplace(key, value); }
+        }
         verifyParams["openid.mode"] = "check_authentication";
 
         const auto sslConfig = oatpp::openssl::Config::createDefaultClientConfigShared();
