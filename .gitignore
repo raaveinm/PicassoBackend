@@ -735,3 +735,6 @@ FodyWeavers.xsd
 /build/
 
 .env
+# install.sh output (Cloudflare ranges etc.) - regenerated on every run
+config/generated/*
+!config/generated/.gitkeep

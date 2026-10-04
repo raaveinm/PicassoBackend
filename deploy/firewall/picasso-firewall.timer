@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh PickUsAll DOCKER-USER rules (Cloudflare ranges change occasionally)
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=1h
+Persistent=true
+Unit=picasso-firewall.service
+
+[Install]
+WantedBy=timers.target

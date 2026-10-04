@@ -31,6 +31,7 @@
         <ul class="toc">
             <li><a href="#variables">Variables</a></li>
             <li><a href="#build">Build</a></li>
+            <li><a href="#exposure">Exposure &amp; flags</a></li>
             <li><a href="#usage">Usage</a></li>
         </ul>
     </section>
@@ -128,7 +129,7 @@
                 <button class="copy-btn" type="button" data-copy-target aria-label="Copy to clipboard">Copy</button>
                 <pre><code>docker build -t picassobackend .
 docker run --rm -p 8000:8000 \
-    -e PICASSO_DB_DSN="host=<db-host> port=5432 dbname=picasso_database user=picasso password=<password>" \
+    -e PICASSO_DB_DSN="host=&lt;db-host&gt; port=5432 dbname=picasso_database user=picasso password=&lt;password&gt;" \
     picassobackend</code></pre>
             </div>
         </article>
@@ -147,7 +148,8 @@ docker run --rm -p 8000:8000 \
 POSTGRES_USER=picasso
 POSTGRES_PASSWORD=change-me
 PICASSO_PUBLIC_URL=http://localhost:8000
-PICASSO_DOMAIN=localhost</code></pre>
+PICASSO_DOMAIN=localhost
+PICASSO_BEHIND_CLOUDFLARE=0   # optional, see "Exposure &amp; flags"</code></pre>
             </div>
             <div class="code-block">
                 <button class="copy-btn" type="button" data-copy-target aria-label="Copy to clipboard">Copy</button>
@@ -157,6 +159,108 @@ PICASSO_DOMAIN=localhost</code></pre>
                 <code>PICASSO_DB_DSN</code> for the <code>backend</code> service is assembled from
                 <code>POSTGRES_USER</code>/<code>POSTGRES_PASSWORD</code> inside the compose file — set those
                 two and the container-to-container DSN needs no further configuration.
+            </p>
+        </article>
+    </section>
+
+    <section id="exposure">
+        <h3>Network exposure &amp; install flags</h3>
+        <p class="section-note">
+            Applies to the Docker Compose stack installed by <code>install.sh</code>. A domain is optional:
+            without one the stack serves plain HTTP on the server's IP, which is fine for a LAN or a quick
+            trial but sends everything unencrypted.
+        </p>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>Flag</th>
+                    <th>Default</th>
+                    <th>Meaning</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr>
+                    <td><code>PICASSO_DOMAIN</code></td>
+                    <td><em>empty</em></td>
+                    <td>Domain already pointed at the server. Set: Caddy obtains a certificate and serves HTTPS. Empty: HTTP only.</td>
+                </tr>
+                <tr>
+                    <td><code>PICASSO_BEHIND_CLOUDFLARE</code></td>
+                    <td><code>0</code></td>
+                    <td>
+                        Set to <code>1</code> only if the domain is proxied by Cloudflare (orange cloud). Ports 80/443
+                        then accept connections from Cloudflare ranges only, and the client IP is read from
+                        <code>CF-Connecting-IP</code>. Requires <code>PICASSO_DOMAIN</code>. Leave it <code>0</code>
+                        otherwise &mdash; with the proxy off, locking the ports to Cloudflare would cut everyone off.
+                    </td>
+                </tr>
+                <tr>
+                    <td><code>PICASSO_SKIP_FIREWALL</code></td>
+                    <td><code>0</code></td>
+                    <td>Set to <code>1</code> to skip the <code>DOCKER-USER</code> rules below and manage the firewall yourself.</td>
+                </tr>
+                <tr>
+                    <td><code>PICASSO_SSH_PORT</code></td>
+                    <td><code>22</code></td>
+                    <td>SSH port <code>install.sh</code> keeps open when <code>ufw</code> is active. It never enables <code>ufw</code> itself.</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <article class="card outlined">
+            <h4>Install with flags</h4>
+            <div class="code-block">
+                <button class="copy-btn" type="button" data-copy-target aria-label="Copy to clipboard">Copy</button>
+                <pre><code># no domain, plain HTTP
+curl -fsSL https://raw.githubusercontent.com/raaveinm/picassobackend/main/install.sh | bash
+
+# own domain, Caddy handles HTTPS
+curl -fsSL .../install.sh | PICASSO_DOMAIN=chat.example.com bash
+
+# own domain behind the Cloudflare proxy
+curl -fsSL .../install.sh | PICASSO_DOMAIN=chat.example.com PICASSO_BEHIND_CLOUDFLARE=1 bash</code></pre>
+            </div>
+            <p>
+                Run interactively, the installer asks about the domain and the Cloudflare proxy instead.
+                Choices are saved to <code>.env</code> and reused on re-runs; existing database credentials are kept.
+            </p>
+        </article>
+
+        <article class="card outlined">
+            <h4>Why not just <code>ufw</code></h4>
+            <p>
+                Docker publishes ports through <code>DNAT</code>/<code>FORWARD</code> rules, so traffic to a
+                published port never reaches the <code>INPUT</code> chain that <code>ufw</code> manages: a
+                <code>ufw deny</code> rule can look correct and still leave the port open. The installer therefore
+                adds rules to Docker's <code>DOCKER-USER</code> chain
+                (<code>deploy/firewall/picasso-firewall.sh</code>): new connections from the internet are dropped
+                unless they target 80/443 &mdash; and, with <code>PICASSO_BEHIND_CLOUDFLARE=1</code>, come from a
+                Cloudflare range. Postgres is published on <code>127.0.0.1</code> only.
+                A <code>systemd</code> timer re-applies the rules daily, because Cloudflare's ranges change and
+                the rules are lost on reboot.
+            </p>
+            <div class="code-block">
+                <button class="copy-btn" type="button" data-copy-target aria-label="Copy to clipboard">Copy</button>
+                <pre><code>sudo /opt/picassobackend/deploy/firewall/picasso-firewall.sh status   # show the rules
+sudo /opt/picassobackend/deploy/firewall/picasso-firewall.sh apply    # re-apply now
+sudo /opt/picassobackend/deploy/firewall/picasso-firewall.sh remove   # undo
+
+# from another machine - only 80/443 (via Cloudflare, if enabled) should answer
+nmap -Pn -p 22,80,443,5432 &lt;server-ip&gt;</code></pre>
+            </div>
+        </article>
+
+        <article class="card">
+            <h4>Cloudflare notes</h4>
+            <p>
+                The Cloudflare proxy covers HTTP(S) and WebSocket on standard ports only. WebRTC media is UDP
+                peer-to-peer and never passes through it; a STUN/TURN host, if you run one, needs its own
+                DNS-only (grey cloud) record, which reveals that host's IP. Set the zone's SSL/TLS mode to
+                <em>Full (strict)</em>. Cloudflare closes idle WebSocket connections after roughly 100 seconds,
+                so clients must keep the socket alive with periodic pings.
             </p>
         </article>
     </section>

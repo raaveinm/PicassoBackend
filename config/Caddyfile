@@ -1,3 +1,12 @@
+{
+    # Empty unless install.sh was run with PICASSO_BEHIND_CLOUDFLARE=1, in which case it declares the
+    # Cloudflare ranges as trusted proxies so CF-Connecting-IP is believed. Never trust that header
+    # without the ranges: any client could forge it and dodge IP-based limits/bans.
+    servers {
+        import /etc/caddy/generated/*.caddy
+    }
+}
+
 {$PICASSO_DOMAIN} {
     redir /static /static/ permanent
 
