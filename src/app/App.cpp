@@ -58,11 +58,11 @@ namespace picasso::app {
             const std::string config_message =
                 "Config {\n  " + config.bindAddress + ":"
             + std::string{std::to_string(config.port)} +
-            + "\n  databaseDsn :" + config.databaseDsn
+            + "\n  databaseDsn :" + redactDsn(config.databaseDsn)
             + "\n  publicUrl :" + config.publicUrl
             + "\n  logLevel :" + config.logLevel
             + "\n}";
-            OATPP_LOGI(TAG, config_message.c_str());
+            OATPP_LOGI(TAG, "%s", config_message.c_str()); // not a format string: a '%' in a URL would be parsed
             auto components = buildComponents(config, activityLogger);
             exitCode = serve(components);
         } catch (const std::exception& error) {

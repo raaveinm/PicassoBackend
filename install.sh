@@ -11,6 +11,9 @@
 #   PICASSO_BEHIND_CLOUDFLARE=1       the domain is proxied by Cloudflare (orange cloud): 80/443 are then
 #                                     reachable from Cloudflare ranges only, and the real client IP is read
 #                                     from CF-Connecting-IP. Requires PICASSO_DOMAIN. Default 0.
+#   POSTGRES_USER=picasso             database user. Default: the saved value, else "picasso".
+#   POSTGRES_PASSWORD=...             database password. Default: the saved value, else a random one.
+#                                     Both apply only when the database volume is first created.
 #   PICASSO_SKIP_FIREWALL=1           do not install the DOCKER-USER rules (you manage the firewall yourself)
 #   PICASSO_SSH_PORT=22               SSH port to keep open when ufw is active
 #
@@ -102,12 +105,24 @@ fi
 # --- .env: keeps existing database credentials (compose refuses to start without POSTGRES_PASSWORD) ---
 env_get() { if [ -f .env ]; then grep -E "^$1=" .env | tail -n1 | cut -d= -f2- || true; fi; }
 
-POSTGRES_USER="$(env_get POSTGRES_USER)"
+# Precedence: environment flag > existing .env > default (user) / generated (password).
+# Both values end up unquoted in .env and inside the libpq connection string, so only characters that
+# need no quoting are accepted.
+POSTGRES_USER="${POSTGRES_USER:-$(env_get POSTGRES_USER)}"
 POSTGRES_USER="${POSTGRES_USER:-picasso}"
-POSTGRES_PASSWORD="$(env_get POSTGRES_PASSWORD)"
+POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-$(env_get POSTGRES_PASSWORD)}"
 if [ -z "$POSTGRES_PASSWORD" ]; then
     POSTGRES_PASSWORD="$(openssl rand -hex 24)"
     log "Generated a new POSTGRES_PASSWORD (stored in $INSTALL_DIR/.env only)"
+fi
+for DB_VALUE in "$POSTGRES_USER" "$POSTGRES_PASSWORD"; do
+    case "$DB_VALUE" in
+        *[!A-Za-z0-9._~-]*) die "POSTGRES_USER/POSTGRES_PASSWORD may contain only letters, digits and . _ ~ -" ;;
+    esac
+done
+if [ "$(env_get POSTGRES_PASSWORD)" != "" ] && [ "$(env_get POSTGRES_PASSWORD)" != "$POSTGRES_PASSWORD" ]; then
+    warn "POSTGRES_PASSWORD differs from the saved one. Postgres applies it only when its data volume is first created;"
+    warn "for an existing database also run: docker compose exec postgres psql -U ${POSTGRES_USER} -d picasso_database -c \"ALTER USER ${POSTGRES_USER} PASSWORD '<new>';\""
 fi
 
 umask 077

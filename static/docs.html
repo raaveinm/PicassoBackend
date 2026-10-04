@@ -158,7 +158,9 @@ PICASSO_BEHIND_CLOUDFLARE=0   # optional, see "Exposure &amp; flags"</code></pre
             <p>
                 <code>PICASSO_DB_DSN</code> for the <code>backend</code> service is assembled from
                 <code>POSTGRES_USER</code>/<code>POSTGRES_PASSWORD</code> inside the compose file — set those
-                two and the container-to-container DSN needs no further configuration.
+                two and the container-to-container DSN needs no further configuration. The backend waits for the
+                database's health check (<code>pg_isready</code> over TCP) before it starts, and the startup log
+                prints the connection string with the password replaced by <code>***</code>.
             </p>
         </article>
     </section>
@@ -197,6 +199,19 @@ PICASSO_BEHIND_CLOUDFLARE=0   # optional, see "Exposure &amp; flags"</code></pre
                     </td>
                 </tr>
                 <tr>
+                    <td><code>POSTGRES_USER</code></td>
+                    <td>saved value, else <code>picasso</code></td>
+                    <td>Database user. Letters, digits and <code>. _ ~ -</code> only (it goes into the connection string unquoted).</td>
+                </tr>
+                <tr>
+                    <td><code>POSTGRES_PASSWORD</code></td>
+                    <td>saved value, else random</td>
+                    <td>
+                        Database password, same character set. When unset, the installer generates one on the first run
+                        and keeps it in <code>.env</code> (mode 600) on every re-run. It is masked in the server's startup log.
+                    </td>
+                </tr>
+                <tr>
                     <td><code>PICASSO_SKIP_FIREWALL</code></td>
                     <td><code>0</code></td>
                     <td>Set to <code>1</code> to skip the <code>DOCKER-USER</code> rules below and manage the firewall yourself.</td>
@@ -221,11 +236,36 @@ curl -fsSL https://raw.githubusercontent.com/raaveinm/picassobackend/main/instal
 curl -fsSL .../install.sh | PICASSO_DOMAIN=chat.example.com bash
 
 # own domain behind the Cloudflare proxy
-curl -fsSL .../install.sh | PICASSO_DOMAIN=chat.example.com PICASSO_BEHIND_CLOUDFLARE=1 bash</code></pre>
+curl -fsSL .../install.sh | PICASSO_DOMAIN=chat.example.com PICASSO_BEHIND_CLOUDFLARE=1 bash
+
+# choose the database credentials yourself (first install only, see below)
+curl -fsSL .../install.sh | POSTGRES_USER=picasso POSTGRES_PASSWORD=choose-a-long-one bash</code></pre>
             </div>
             <p>
                 Run interactively, the installer asks about the domain and the Cloudflare proxy instead.
-                Choices are saved to <code>.env</code> and reused on re-runs; existing database credentials are kept.
+                Choices are saved to <code>.env</code> and reused on re-runs. Precedence for every value:
+                flag in the environment, then the saved <code>.env</code>, then the default.
+            </p>
+        </article>
+
+        <article class="card outlined">
+            <h4>Changing database credentials later</h4>
+            <p>
+                Postgres reads <code>POSTGRES_USER</code>/<code>POSTGRES_PASSWORD</code> only when it creates its data
+                volume. Editing <code>.env</code> on an installed server changes what the backend sends, not what the
+                database accepts, and the backend then fails to start with "Can't connect". To rotate the password:
+            </p>
+            <div class="code-block">
+                <button class="copy-btn" type="button" data-copy-target aria-label="Copy to clipboard">Copy</button>
+                <pre><code>cd /opt/picassobackend
+NEW=$(openssl rand -hex 24)
+docker compose exec postgres psql -U picasso -d picasso_database -c "ALTER USER picasso PASSWORD '$NEW';"
+sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$NEW|" .env
+docker compose up -d backend</code></pre>
+            </div>
+            <p>
+                Renaming the user is not supported in place: it needs <code>ALTER ROLE ... RENAME TO</code> followed by
+                the same <code>.env</code> edit, or a fresh volume (<code>docker compose down -v</code> deletes all data).
             </p>
         </article>
 

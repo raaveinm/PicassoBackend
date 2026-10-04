@@ -105,6 +105,15 @@ pre code {
 /* Wraps a pre block so the copy button can pin to its top-right corner. */
 .code-block {
     position: relative;
+    margin: 1rem 0;
+}
+
+.code-block:first-child {
+    margin-top: 0;
+}
+
+.code-block:last-child {
+    margin-bottom: 0;
 }
 
 .code-block pre {

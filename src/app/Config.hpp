@@ -22,4 +22,10 @@ namespace picasso::app {
     };
 
     Config loadConfigFromEnvironment();
+
+    /*
+     * Returns the DSN with the password replaced by "***", safe to log. Handles both forms libpq accepts:
+     * keyword/value ("host=db password=secret", also quoted 'a b') and URI ("postgresql://user:secret@host/db").
+     */
+    std::string redactDsn(const std::string& dsn);
 } // namespace picasso::app
