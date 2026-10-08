@@ -88,11 +88,36 @@ BOOST_FIXTURE_TEST_SUITE(
         BOOST_CHECK_THROW(sessions().store(makeSession("hash-alice", alice)), std::runtime_error);
     }
 
-    BOOST_AUTO_TEST_CASE(session_for_unknown_user_is_rejected) {
-        BOOST_CHECK_THROW(
-            sessions().store(makeSession("hash-ghost", SteamId(static_cast<std::uint64_t>(42)))),
-            std::runtime_error
-        );
+    // store() upserts the users row in the same transaction, so a first-time login needs no prior seeding.
+    BOOST_AUTO_TEST_CASE(store_creates_missing_user) {
+        const SteamId newcomer(static_cast<std::uint64_t>(76561198000000042ULL));
+        const auto stored = makeSession("hash-newcomer", newcomer);
+
+        BOOST_CHECK_NO_THROW(sessions().store(stored));
+        const auto found = sessions().findByTokenHash("hash-newcomer");
+
+        BOOST_TEST_REQUIRE(found.has_value());
+        BOOST_TEST(found->steam_id == newcomer);
+    }
+
+    // The users upsert is ON CONFLICT DO NOTHING: a returning user must not make store() fail.
+    BOOST_AUTO_TEST_CASE(store_for_existing_user_succeeds) {
+        const auto alice = user(76561198000000001ULL);
+
+        BOOST_CHECK_NO_THROW(sessions().store(makeSession("hash-alice", alice)));
+    }
+
+    // A rejected duplicate store() must not disturb the session that is already there.
+    BOOST_AUTO_TEST_CASE(failed_store_leaves_original_session_intact) {
+        const auto alice = user(76561198000000001ULL);
+        const auto original = makeSession("hash-alice", alice);
+        sessions().store(original);
+
+        BOOST_CHECK_THROW(sessions().store(makeSession("hash-alice", alice)), std::runtime_error);
+
+        const auto found = sessions().findByTokenHash("hash-alice");
+        BOOST_TEST_REQUIRE(found.has_value());
+        BOOST_TEST(found->created_at_epoch_ms == original.created_at_epoch_ms);
     }
 
 BOOST_AUTO_TEST_SUITE_END()
