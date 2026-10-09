@@ -103,6 +103,59 @@ CREATE TABLE IF NOT EXISTS message_data (
 CREATE INDEX IF NOT EXISTS message_data_by_conversation_id
     ON message_data (conversation_id, id);
 
+-- Picasso's own contact graph (brainstorm/chat-sync-contract.md, section 3A). Steam
+-- friendship says nothing about who may talk to whom here.
+--
+-- A row means "owner regards other as level". Directional on purpose: a block is
+-- one-sided, and the ally/friend tier is what the OWNER shares with the other.
+-- Ally-ness itself stays mutual because accepting a request writes both rows.
+-- "stranger" is the absence of a row and is deliberately never stored.
+--
+-- canCommunicate(a, b) holds iff both (a, b) and (b, a) exist with level in
+-- ('ally', 'friend'). An 'imposter' row on either side, or a missing row, fails it.
+CREATE TABLE IF NOT EXISTS contacts (
+    owner_id bigint NOT NULL REFERENCES users (steam_id) ON DELETE CASCADE,
+    other_id bigint NOT NULL REFERENCES users (steam_id) ON DELETE CASCADE,
+    level    text   NOT NULL CHECK (level IN ('imposter', 'ally', 'friend')),
+    since    bigint NOT NULL,
+    PRIMARY KEY (owner_id, other_id),
+    CHECK (owner_id <> other_id)
+);
+
+-- "Who is on my contact list / blocklist" - the primary key already serves lookups
+-- by owner; this serves "who regards me as ..." (used when a block deletes the other
+-- side's row).
+CREATE INDEX IF NOT EXISTS contacts_by_other ON contacts (other_id);
+
+-- declined_at keeps a declined request around as a 7-day cooldown marker instead of
+-- deleting it: the sender is not told, and a fresh request is silently dropped while
+-- the marker is young. Pending = declined_at IS NULL.
+CREATE TABLE IF NOT EXISTS contact_requests (
+    from_id     bigint NOT NULL REFERENCES users (steam_id) ON DELETE CASCADE,
+    to_id       bigint NOT NULL REFERENCES users (steam_id) ON DELETE CASCADE,
+    created_at  bigint NOT NULL,
+    declined_at bigint,
+    PRIMARY KEY (from_id, to_id),
+    CHECK (from_id <> to_id)
+);
+
+CREATE INDEX IF NOT EXISTS contact_requests_by_to ON contact_requests (to_id);
+
+-- Pending palette invitations. Deliberately NOT a status column on members:
+-- isMember(), members() and conversationsOf() would all need a filter, and one
+-- forgotten filter would let a pending invitee read a palette. A separate table makes
+-- "pending" structurally not a member.
+CREATE TABLE IF NOT EXISTS palette_invites (
+    palette_id  bigint NOT NULL REFERENCES palette (conversation_id) ON DELETE CASCADE,
+    invitee_id  bigint NOT NULL REFERENCES users (steam_id) ON DELETE CASCADE,
+    inviter_id  bigint NOT NULL REFERENCES users (steam_id) ON DELETE CASCADE,
+    created_at  bigint NOT NULL,
+    declined_at bigint,
+    PRIMARY KEY (palette_id, invitee_id)
+);
+
+CREATE INDEX IF NOT EXISTS palette_invites_by_invitee ON palette_invites (invitee_id);
+
 -- game_id is a Steam appid - an opaque number here, with no games table to join.
 --
 -- enqueued_at exists so that entries of equal priority have a defined order;
@@ -119,3 +172,5 @@ CREATE TABLE IF NOT EXISTS game_queue (
 
 CREATE INDEX IF NOT EXISTS game_queue_by_game
     ON game_queue (game_id, priority DESC, enqueued_at);
+
+-- что за ебанина происходит в этом блядт проекте

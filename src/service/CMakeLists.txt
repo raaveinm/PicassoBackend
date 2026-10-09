@@ -6,6 +6,10 @@ add_library(picasso_service STATIC
         Services.hpp
         ChatService.cpp
         ChatService.hpp
+        ContactService.cpp
+        ContactService.hpp
+        ConversationService.cpp
+        ConversationService.hpp
         CallSignalService.cpp
         CallSignalService.hpp
         AuthService.cpp

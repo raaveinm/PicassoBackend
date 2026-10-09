@@ -29,6 +29,12 @@ namespace picasso::dto {
         SdpOffer,
         SdpAnswer,
         IceCandidate,
+
+        ContactRequest,
+        ContactUpdated,
+        PaletteInvite,
+        ConversationAdded,
+        ConversationUpdated,
     };
 
     /* Returns MessageType::Unknown for anything unrecognised - never throws. */

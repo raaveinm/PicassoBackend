@@ -8,6 +8,7 @@
 #include <string>
 
 #include "domain/ports/ChatRepository.hpp"
+#include "domain/ports/ContactRepository.hpp"
 #include "domain/ports/ConversationRepository.hpp"
 #include "domain/ports/SessionRepository.hpp"
 
@@ -18,6 +19,7 @@ namespace picasso::storage {
      */
     struct Repositories {
         std::shared_ptr<domain::ChatRepository> chat;
+        std::shared_ptr<domain::ContactRepository> contacts;
         std::shared_ptr<domain::ConversationRepository> conversations;
         std::shared_ptr<domain::SessionRepository> sessions;
     };

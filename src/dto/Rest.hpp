@@ -30,13 +30,46 @@ namespace picasso::dto {
         DTO_FIELD(Int64, expiresAt);
     };
 
-    class ConversationDto : public oatpp::DTO {
-        DTO_INIT(ConversationDto, DTO)
+    /* POST /conversations. A dm uses peerSteamId; a palette uses name + inviteSteamIds. */
+    class CreateConversationDto : public oatpp::DTO {
+        DTO_INIT(CreateConversationDto, DTO)
 
-        DTO_FIELD(String, id);
         DTO_FIELD(String, kind);
-        DTO_FIELD(String, title);
-        DTO_FIELD(List<String>, memberSteamIds);
+        DTO_FIELD(String, peerSteamId);
+        DTO_FIELD(String, name);
+        DTO_FIELD(List<String>, inviteSteamIds);
+    };
+
+    /* POST /contacts/requests and POST /conversations/{id}/invites. */
+    class SteamIdBodyDto : public oatpp::DTO {
+        DTO_INIT(SteamIdBodyDto, DTO)
+
+        DTO_FIELD(String, steamId);
+    };
+
+    /* PUT /contacts/{steamId}: "ally" | "friend" | "imposter". */
+    class ContactLevelBodyDto : public oatpp::DTO {
+        DTO_INIT(ContactLevelBodyDto, DTO)
+
+        DTO_FIELD(String, level);
+    };
+
+    class ContactDto : public oatpp::DTO {
+        DTO_INIT(ContactDto, DTO)
+
+        DTO_FIELD(String, steamId);
+        DTO_FIELD(String, level);
+        DTO_FIELD(Int64, since);                        // epoch ms
+    };
+
+    /* GET /contacts - the caller's own rows only, including their blocklist. */
+    class ContactsDto : public oatpp::DTO {
+        DTO_INIT(ContactsDto, DTO)
+
+        DTO_FIELD(List<Object<ContactDto>>, contacts);
+        DTO_FIELD(List<Object<ContactRequestDto>>, incoming);
+        DTO_FIELD(List<Object<ContactRequestDto>>, outgoing);
+        DTO_FIELD(List<Object<PaletteInviteDto>>, paletteInvites);
     };
 
     /*

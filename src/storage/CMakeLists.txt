@@ -12,6 +12,9 @@ add_library(picasso_storage STATIC
         Rows.hpp
         PgChatRepository.cpp
         PgChatRepository.hpp
+        PgContactRepository.cpp
+        PgContactRepository.hpp
+        QueryCheck.hpp
         PgConversationRepository.cpp
         PgConversationRepository.hpp
         PgSessionRepository.cpp

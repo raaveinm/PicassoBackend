@@ -5,6 +5,7 @@ add_library(picasso_dto STATIC
         MessageType.cpp
         MessageType.hpp
         Envelope.hpp
+        Mappers.hpp
         Rest.hpp)
 
 target_link_libraries(picasso_dto

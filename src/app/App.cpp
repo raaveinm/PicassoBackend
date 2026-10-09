@@ -16,6 +16,8 @@
 #include "app/ServerRunner.hpp"
 #include "logger/CsvLogger.hpp"
 #include "transport/http/HttpModule.hpp"
+#include "transport/ws/EnvelopeCodec.hpp"
+#include "transport/ws/WsEventSink.hpp"
 
 namespace picasso::app {
     namespace {
@@ -25,21 +27,22 @@ namespace picasso::app {
     Components buildComponents(const Config& config, std::shared_ptr<logger::ActivityLogger> activityLogger) {
         Components components;
         components.config = config;
-
         components.objectMapper = oatpp::parser::json::mapping::ObjectMapper::createShared();
         components.router = oatpp::web::server::HttpRouter::createShared();
-
         components.activityLogger = std::move(activityLogger);
-
         components.repositories = storage::makeRepositories(config.databaseDsn);
-
         components.hub = std::make_shared<transport::ws::ConnectionHub>();
+
+        const auto events = std::make_shared<transport::ws::WsEventSink>(
+            std::make_shared<transport::ws::EnvelopeCodec>(components.objectMapper),
+            components.hub);
 
         components.services = service::makeServices(
             components.repositories,
             components.hub,
             components.hub,
-            std::make_shared<steam::OpenIdVerifier>(config.publicUrl));
+            std::make_shared<steam::OpenIdVerifier>(config.publicUrl),
+            events);
 
         transport::http::registerControllers(components.router, components.objectMapper, components.services);
         components.wsEndpoint = transport::ws::registerWsEndpoint(

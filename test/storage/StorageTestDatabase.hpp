@@ -9,9 +9,12 @@
 #include <cstdlib>
 #include <initializer_list>
 #include <memory>
+#include <mutex>
 #include <ostream>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
+#include <vector>
 
 #include <boost/test/unit_test.hpp>
 
@@ -19,7 +22,11 @@
 #include "oatpp/core/macro/codegen.hpp"
 #include "oatpp/orm/DbClient.hpp"
 
+#include "domain/Contact.hpp"
 #include "domain/Ids.hpp"
+#include "domain/ports/EventSink.hpp"
+#include "service/ContactService.hpp"
+#include "service/ConversationService.hpp"
 #include "storage/Repositories.hpp"
 #include "storage/Rows.hpp"
 
@@ -29,7 +36,31 @@ namespace picasso::domain {
     std::ostream& boost_test_print_type(std::ostream& stream, const Id<Tag, T>& id) {
         return stream << id.value();
     }
+
+    inline std::ostream& boost_test_print_type(std::ostream& stream, const ContactLevel level) {
+        return stream << toWireString(level);
+    }
+
+    /*
+     * Scoped enums have no operator<<; print them as numbers rather than fail to compile.
+     * Takes `const E&` and is constrained so it beats Boost's own unconstrained fallback
+     * template in overload resolution instead of being ambiguous with it.
+     */
+    template <typename E>
+        requires std::is_enum_v<E>
+    std::ostream& boost_test_print_type(std::ostream& stream, const E& value) {
+        return stream << static_cast<long long>(value);
+    }
 } // namespace picasso::domain
+
+namespace picasso::service {
+    /* Same for the nested outcome enums of the services (ADL looks in the enclosing namespace). */
+    template <typename E>
+        requires std::is_enum_v<E>
+    std::ostream& boost_test_print_type(std::ostream& stream, const E& value) {
+        return stream << static_cast<long long>(value);
+    }
+} // namespace picasso::service
 
 namespace picasso::test {
     inline const auto TEST_DB_DSN_ENV = "PICASSO_TEST_DB_DSN";
@@ -59,7 +90,8 @@ namespace picasso::test {
             : DbClient(executor) {}
 
         QUERY(truncateAll,
-            "TRUNCATE users, sessions, conversations, chat, palette, members, message_data, game_queue "
+            "TRUNCATE users, sessions, conversations, chat, palette, members, message_data, game_queue, "
+            "contacts, contact_requests, palette_invites "
             "RESTART IDENTITY CASCADE;")
 
         QUERY(insertUser,
@@ -89,6 +121,27 @@ namespace picasso::test {
 
 #include OATPP_CODEGEN_END(DbClient)
 
+    /* Collects what the services publish, so a test can assert who was told what. */
+    class RecordingEventSink final : public domain::EventSink {
+    public:
+        void publish(const domain::Event& event) override {
+            const std::lock_guard lock(mutex_);
+            events_.push_back(event);
+        }
+
+        /* Everything published since the last call, in order. */
+        std::vector<domain::Event> take() {
+            const std::lock_guard lock(mutex_);
+            auto out = std::move(events_);
+            events_.clear();
+            return out;
+        }
+
+    private:
+        std::mutex mutex_;
+        std::vector<domain::Event> events_;
+    };
+
     /**
      * One connection pool per process, built on first use and deliberately never
      * destroyed: oatpp's pool keeps itself alive through a detached cleanup thread,
@@ -103,6 +156,9 @@ namespace picasso::test {
 
         storage::Repositories repositories;
         std::shared_ptr<SeedDbClient> seed;
+        std::shared_ptr<RecordingEventSink> events = std::make_shared<RecordingEventSink>();
+        std::shared_ptr<service::ContactService> contact_service;
+        std::shared_ptr<service::ConversationService> conversation_service;
 
     private:
         TestDatabase()
@@ -112,6 +168,10 @@ namespace picasso::test {
                 oatpp::String(testDsn()));
             seed = std::make_shared<SeedDbClient>(
                 std::make_shared<oatpp::postgresql::Executor>(connection_provider));
+            contact_service = std::make_shared<service::ContactService>(
+                repositories.contacts, repositories.conversations, events);
+            conversation_service = std::make_shared<service::ConversationService>(
+                repositories.conversations, repositories.contacts, events);
         }
     };
 
@@ -124,11 +184,24 @@ namespace picasso::test {
     public:
         StorageFixture() : db_(TestDatabase::instance()) {
             check(db_.seed->truncateAll(), "truncateAll");
+            db_.events->take();         // a previous test's events must not leak into this one
         }
 
         [[nodiscard]] domain::ChatRepository& chat() const { return *db_.repositories.chat; }
         [[nodiscard]] domain::ConversationRepository& conversations() const { return *db_.repositories.conversations; }
         [[nodiscard]] domain::SessionRepository& sessions() const { return *db_.repositories.sessions; }
+        [[nodiscard]] domain::ContactRepository& contacts() const { return *db_.repositories.contacts; }
+        [[nodiscard]] RecordingEventSink& events() const { return *db_.events; }
+        [[nodiscard]] service::ContactService& contactService() const { return *db_.contact_service; }
+        [[nodiscard]] service::ConversationService& conversationService() const { return *db_.conversation_service; }
+
+        /* Two users who are mutual allies, made through the real request/accept flow. */
+        void ally(const domain::SteamId first, const domain::SteamId second) const {
+            contactService().request(first, second);
+            if (!contactService().accept(second, first)) {
+                throw std::runtime_error("fixture ally(): accept found no pending request");
+            }
+        }
 
         [[nodiscard]] domain::SteamId user(const std::uint64_t steam_id) const {
             check(db_.seed->insertUser(oatpp::Int64(static_cast<v_int64>(steam_id))), "insertUser");

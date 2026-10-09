@@ -13,6 +13,7 @@
 
 #include "PicassoDatabaseClient.hpp"
 #include "storage/PgChatRepository.hpp"
+#include "storage/PgContactRepository.hpp"
 #include "storage/PgConversationRepository.hpp"
 #include "storage/PgSessionRepository.hpp"
 
@@ -40,6 +41,7 @@ namespace picasso::storage {
 
         return Repositories{
             .chat = std::make_shared<PgChatRepository>(db),
+            .contacts = std::make_shared<PgContactRepository>(db),
             .conversations = std::make_shared<PgConversationRepository>(db),
             .sessions = std::make_shared<PgSessionRepository>(db),
         };

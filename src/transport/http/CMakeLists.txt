@@ -6,6 +6,8 @@ add_library(picasso_transport_http STATIC
         ErrorHandler.hpp
         HealthController.hpp
         AuthController.hpp
+        ContactController.hpp
+        HttpSupport.hpp
         ConversationController.hpp)
 
 target_link_libraries(picasso_transport_http

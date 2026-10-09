@@ -20,6 +20,8 @@ add_executable(picasso_storage_test
         storage/StorageTestDatabase.hpp
         storage/RepositoriesTest.cpp
         storage/ChatRepositoryTest.cpp
+        storage/ContactRepositoryTest.cpp
+        storage/SocialServiceTest.cpp
         storage/ConversationRepositoryTest.cpp
         storage/SessionRepositoryTest.cpp)
 
@@ -29,6 +31,6 @@ target_include_directories(picasso_storage_test
 # oatpp-postgresql directly, not through picasso_storage (which keeps it PRIVATE):
 # the seed client writes rows no repository port can write yet.
 target_link_libraries(picasso_storage_test
-        PRIVATE picasso_storage oatpp::oatpp-postgresql Boost::unit_test_framework Threads::Threads)
+        PRIVATE picasso_storage picasso_service oatpp::oatpp-postgresql Boost::unit_test_framework Threads::Threads)
 
 add_test(NAME picasso_storage_test COMMAND picasso_storage_test)

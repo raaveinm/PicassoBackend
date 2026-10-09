@@ -9,9 +9,13 @@ add_library(picasso_domain STATIC
         Errors.hpp
         Message.hpp
         Conversation.hpp
+        Contact.hpp
+        Events.hpp
         Session.hpp
         Clock.hpp
         ports/ChatRepository.hpp
+        ports/ContactRepository.hpp
+        ports/EventSink.hpp
         ports/ConversationRepository.hpp
         ports/SessionRepository.hpp
         ports/PresenceRegistry.hpp

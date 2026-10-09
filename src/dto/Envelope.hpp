@@ -19,7 +19,6 @@ namespace picasso::dto {
         DTO_INIT(ChatMessageInDto, DTO)
 
         DTO_FIELD(String, conversationId);
-        /* The client's outbox row id, echoed back in the ack. */
         DTO_FIELD(String, localMessageId);
         DTO_FIELD(String, body);
     };
@@ -95,6 +94,59 @@ namespace picasso::dto {
         DTO_FIELD(String, fromSteamId);
     };
 
+    /*
+     * Ids are strings on the wire: SteamIDs (~7.6e16) exceed 2^53, and one rule beats
+     * two. `name` is null for a dm; `invited` is always [] for a dm. `writable` is
+     * false for a dm whose pair no longer satisfies the contact rule (a frozen dm).
+     */
+    class ConversationDto : public oatpp::DTO {
+        DTO_INIT(ConversationDto, DTO)
+
+        DTO_FIELD(String, id);
+        DTO_FIELD(String, kind);                        // "dm" | "palette"
+        DTO_FIELD(String, name);
+        DTO_FIELD(List<String>, members);
+        DTO_FIELD(List<String>, invited);
+        DTO_FIELD(Boolean, writable);
+        DTO_FIELD(Int64, createdAt);                    // epoch ms
+    };
+
+    /* For incoming the steamId is the sender, for outgoing the target. */
+    class ContactRequestDto : public oatpp::DTO {
+        DTO_INIT(ContactRequestDto, DTO)
+
+        DTO_FIELD(String, steamId);
+        DTO_FIELD(Int64, createdAt);                    // epoch ms
+    };
+
+    class PaletteInviteDto : public oatpp::DTO {
+        DTO_INIT(PaletteInviteDto, DTO)
+
+        DTO_FIELD(String, conversationId);
+        DTO_FIELD(String, name);
+        DTO_FIELD(String, inviterSteamId);
+        DTO_FIELD(Int64, createdAt);                    // epoch ms
+    };
+
+    /* contact_updated: `steamId` is the OTHER person; level is null for "stranger". */
+    class ContactUpdatedDto : public oatpp::DTO {
+        DTO_INIT(ContactUpdatedDto, DTO)
+
+        DTO_FIELD(String, steamId);
+        DTO_FIELD(String, level);                       // "imposter" | "ally" | "friend" | null
+    };
+
+    /* palette_invite: state is "pending", or "resolved" once accepted/declined on another device. */
+    class PaletteInviteEventDto : public oatpp::DTO {
+        DTO_INIT(PaletteInviteEventDto, DTO)
+
+        DTO_FIELD(String, conversationId);
+        DTO_FIELD(String, name);
+        DTO_FIELD(String, inviterSteamId);
+        DTO_FIELD(Int64, createdAt);                    // epoch ms
+        DTO_FIELD(String, state);
+    };
+
     /* Every WS frame in either direction. `type` selects the populated payload. */
     class EnvelopeDto : public oatpp::DTO {
         DTO_INIT(EnvelopeDto, DTO)
@@ -109,6 +161,10 @@ namespace picasso::dto {
         DTO_FIELD(Object<SdpDto>, sdp);
         DTO_FIELD(Object<IceCandidateDto>, iceCandidate);
         DTO_FIELD(Object<CallHangupDto>, callHangup);
+        DTO_FIELD(Object<ContactRequestDto>, contactRequest);
+        DTO_FIELD(Object<ContactUpdatedDto>, contactUpdated);
+        DTO_FIELD(Object<PaletteInviteEventDto>, paletteInvite);
+        DTO_FIELD(Object<ConversationDto>, conversation);
     };
 } // namespace picasso::dto
 

@@ -10,6 +10,8 @@ add_library(picasso_transport_ws STATIC
         ConnectionHub.hpp
         EnvelopeCodec.cpp
         EnvelopeCodec.hpp
+        WsEventSink.cpp
+        WsEventSink.hpp
         WsSession.cpp
         WsSession.hpp
         WsController.hpp

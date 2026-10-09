@@ -38,7 +38,13 @@ namespace picasso::transport::http {
             text.erase(0, kNotImplementedPrefix.size());
         }
 
-        if (effectiveStatus == Status::CODE_404) {
+        bool wants_json = false;
+        if (text.rfind(std::string(JSON_ERROR_PREFIX), 0) == 0) {
+            wants_json = true;
+            text.erase(0, JSON_ERROR_PREFIX.size());
+        }
+
+        if (effectiveStatus == Status::CODE_404 && !wants_json) {
             const auto file = oatpp::String::loadFromFile(PICASSO_STATIC_ROOT "/not_found.html");
             auto response = ResponseFactory::createResponse(Status::CODE_404, file);
             response->putHeader(Header::CONTENT_TYPE, "text/html; charset=utf-8");

@@ -21,8 +21,9 @@ namespace picasso::domain {
                                  const std::string& body) = 0;
 
         /* Backs GET /conversations/{id}/messages?after={id} - the client's cache sync. */
-        virtual std::vector<Message> historyAfter(const ConversationId& conversationId,
-                                                  MessageId after,
-                                                  int limit) = 0;
+        virtual std::vector<Message> historyAfter(
+            const ConversationId& conversationId,
+            MessageId after,
+            int limit) = 0;
     };
 } // namespace picasso::domain

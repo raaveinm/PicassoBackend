@@ -5,12 +5,21 @@
 #pragma once
 
 #include <memory>
+#include <string>
+#include <string_view>
 
 #include "oatpp/core/data/mapping/ObjectMapper.hpp"
 #include "oatpp/web/protocol/http/outgoing/Response.hpp"
 #include "oatpp/web/server/handler/ErrorHandler.hpp"
 
 namespace picasso::transport::http {
+
+    inline constexpr std::string_view JSON_ERROR_PREFIX = "json-error: ";
+
+    inline oatpp::String jsonError(const std::string& message) {
+        return oatpp::String(std::string(JSON_ERROR_PREFIX) + message); // NOLINT(*-return-braced-init-list)
+    }
+
     class ErrorHandler final : public oatpp::base::Countable,
                                public oatpp::web::server::handler::ErrorHandler {
     public:
