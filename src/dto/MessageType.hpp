@@ -17,6 +17,9 @@ namespace picasso::dto {
 
         ChatMessage,
         ChatAck,
+        ChatNack,
+        ChatMessageOut,
+        MessageDeleted,
 
         CallInvite,
         IncomingCall,

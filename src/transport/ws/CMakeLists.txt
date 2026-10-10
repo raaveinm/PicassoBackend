@@ -6,6 +6,7 @@
 add_library(picasso_transport_ws STATIC
         WsModule.cpp
         WsModule.hpp
+        BoundedFrameQueue.hpp
         ConnectionHub.cpp
         ConnectionHub.hpp
         EnvelopeCodec.cpp

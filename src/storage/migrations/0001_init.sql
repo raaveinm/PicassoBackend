@@ -90,13 +90,31 @@ CREATE INDEX IF NOT EXISTS members_by_user_id ON members (user_id);
 --
 -- Messages hang off conversations, not off chat or palette, so history works the
 -- same way for a dm and a Palette.
+--
+-- client_message_id is the idempotency key: a UUID the client mints with the message. A
+-- retry after a lost ack hits the UNIQUE below and gets the existing row back instead of
+-- a duplicate. It is a client-generated UUID and not the client's row id on purpose - a
+-- local autoincrement restarts at 1 after an app-data wipe and would collide with an old
+-- message, silently dropping a brand-new one.
+--
+-- deleted_at: deletion is soft and silent. The row stays (so the key above keeps working
+-- and a late retry cannot resurrect it) with its text emptied, and every history read
+-- filters deleted_at IS NULL. Tombstones are kept forever, which is what removes any
+-- "client was offline too long" edge case from sync.
 CREATE TABLE IF NOT EXISTS message_data (
-    id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    conversation_id bigint NOT NULL REFERENCES conversations (id) ON DELETE CASCADE,
-    sender_steam_id bigint NOT NULL REFERENCES users (steam_id),
-    text_message    text   NOT NULL,
-    sent_at         bigint NOT NULL
+    id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    conversation_id   bigint NOT NULL REFERENCES conversations (id) ON DELETE CASCADE,
+    sender_steam_id   bigint NOT NULL REFERENCES users (steam_id),
+    client_message_id text   NOT NULL,
+    text_message      text   NOT NULL,
+    sent_at           bigint NOT NULL,
+    deleted_at        bigint,
+    UNIQUE (conversation_id, sender_steam_id, client_message_id)
 );
+
+-- "Which messages were deleted since T" for POST /sync; only tombstones are indexed.
+CREATE INDEX IF NOT EXISTS message_data_deleted
+    ON message_data (deleted_at) WHERE deleted_at IS NOT NULL;
 
 -- Serves the only hot read: "everything in this conversation after id N". The
 -- primary key index is on id alone and cannot answer that without a scan.
@@ -172,5 +190,3 @@ CREATE TABLE IF NOT EXISTS game_queue (
 
 CREATE INDEX IF NOT EXISTS game_queue_by_game
     ON game_queue (game_id, priority DESC, enqueued_at);
-
--- что за ебанина происходит в этом блядт проекте

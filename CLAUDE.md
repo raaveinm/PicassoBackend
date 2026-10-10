@@ -9,37 +9,31 @@ Product context, terminology (Artist/Palette/Color/...), the multi-server archit
 
 There is no longer a `docs/` directory (it held `SERVER.md`, `WEBRTC.md` and a chartdb diagram; it was removed). The only user-facing doc is `static/docs.html`, served at `GET /docs` (env vars, build, network exposure, install flags) — **keep it in sync with `install.sh`'s header comment and with the "Configuration" section below**. Facts that used to live in `WEBRTC.md` and still matter are inlined in "Structural invariants".
 
-## Status (2026-10-08)
+## Status (2026-10-09)
 
-Auth and storage are real now; chat delivery and call setup are the remaining stubs. The build is **closer to, but still not, safe for a public network** — see the security note in "Known WIP / gaps".
+Auth, storage, the contact graph, conversation creation and **chat** are real. What is left is call setup (`call_invite`), the relay membership check, and ops hardening. The build is **closer to, but still not, safe for a public network** — see the security note in "Known WIP / gaps".
+
+The design behind chat and contacts is `../brainstorm/chat-sync-contract.md` (reasons in `../brainstorm/decisions.md`, "Chat sync & the contact graph"); the client side is in `../picassofrontend/`.
 
 Real, running logic:
 
-- **Config** from the environment (`PICASSO_*`, see "Configuration"). A missing `PICASSO_DB_DSN` fails startup with exit 1 (`makeRepositories` throws on an empty DSN). The DSN is password-redacted (`redactDsn`) before it is logged.
-- **HTTP**: `GET /ping` -> 200 `pong` + `X-Service-Status: Healthy`; `GET /` -> `static/index.html`; `GET /docs` -> `static/docs.html`; `GET /static/css/{name}`, `/static/js/{name}` (name allow-list + traversal rejection); unknown route -> `static/not_found.html` (404).
-- **Steam OpenID login, three-legged** (the Steam redirect lands in a browser, a different process from the app, so the app can't read it): `GET /auth/steam/begin?state=<nonce>` -> 302 to Steam; `GET /auth/steam/return` verifies the assertion (`check_authentication` POST back to steamcommunity over oatpp-openssl), mints a session token, *parks* it under the `state` nonce and serves a "Signed in, close this tab" page; `GET /auth/steam/poll?state=<nonce>` -> 200 `{token, steamId (string), expiresAt}` once, then 204 forever (204 also means "not ready", "already claimed" and "expired" — indistinguishable on purpose); `POST /auth/logout` (Bearer) -> 204, idempotent. Without a `state` the return leg answers with the token DTO directly (bare browser login).
-- **Sessions**: opaque 32-byte random token (hex) returned once; only its SHA-256 is stored (`sessions.token_hash`). TTL 30 days (`SESSION_TTL`). `AuthService::authenticate` hashes the presented token and requires `isUsableAt(now)` (not revoked, not expired). Parked logins live in an in-memory map, single-use, pruned after 5 min (`PENDING_LOGIN_TTL_MS`) — lost on restart, which is fine for a 5-minute handoff.
-- **`GET /ws`**: 401 without `Authorization: Bearer <token>`, 401 for an unknown/expired/revoked token; otherwise 101 and the verified steamId is handed to the session through the upgrade parameters. The token must be the *session token from login*, not a steamId — the old "literal steamId" stand-in is gone.
-- **WS frames**: `sdp_offer` / `sdp_answer` / `ice_candidate` / `call_hangup` are relayed to the target steamId's connection(s) with `fromSteamId` stamped by the server (`CallSignalService::relayToPeer`). **No membership check yet.**
-- **Postgres storage** via `oatpp-postgresql` (pool of 10, 2 min TTL): `PgChatRepository` (`append`, `historyAfter`), `PgConversationRepository` (`isMember`, `members`, `conversationsOf`), `PgSessionRepository` (`store` — also upserts the `users` row in one transaction —, `findByTokenHash`, `revoke`). **The schema migrates itself at startup**: constructing `PicassoDatabaseClient` runs `oatpp::orm::SchemaMigration` over `migrations/0001_init.sql` (path baked in as `DATABASE_MIGRATIONS`).
-- **Presence/fan-out**: `ConnectionHub` (one steamId -> many sockets, `weak_ptr`, sends outside the lock). Instance-local, no Redis.
-- **Logging**: every `OATPP_LOG*` goes to the console *and* to `logs/log_file<MM-DD-YYYY>.csv` (`logger/ActivityLogger`: daily rotation, 7-day retention by the date in the file name; `CsvLogger` is installed before anything logs — `run()` builds the `ActivityLogger` first). `docker-compose.yaml` mounts `./logs`.
-- **Failed bind** logs `cannot bind <addr>:<port>` and exits 1 instead of aborting.
-- **Tests + CI** (see "Tests").
-- **Deploy tooling**: `Dockerfile`, `docker-compose.yaml` (postgres, backend, caddy, node-exporter, prometheus, grafana), `install.sh`, Cloudflare-aware firewall (see "Deployment").
+- **Config** from the environment (`PICASSO_*`, see "Configuration"). A missing `PICASSO_DB_DSN` fails startup with exit 1. The DSN is password-redacted before it is logged.
+- **HTTP**: `GET /ping`, `GET /`, `GET /docs`, `GET /static/css|js/{name}`; unknown route -> `static/not_found.html` (404). API errors that carry a `json-error:` message prefix (`jsonError()` in `ErrorHandler.hpp`) get the JSON error body instead of that HTML page.
+- **Steam OpenID login, three-legged** (the Steam redirect lands in a browser, a different process from the app): `GET /auth/steam/begin?state=` -> 302; `GET /auth/steam/return` verifies the assertion and *parks* a minted token under the nonce; `GET /auth/steam/poll?state=` -> 200 once, then 204; `POST /auth/logout`. Sessions are opaque 32-byte tokens, only the SHA-256 is stored, TTL 30 days.
+- **`GET /ws`**: 401 without a valid session token; otherwise 101 and the verified steamId is handed to the session through the upgrade parameters.
+- **Contacts** (Picasso's own graph; Steam friendship is irrelevant): `contacts` rows are directional, `canCommunicate(a, b)` is the single rule (both rows exist and are ally/friend). REST: `GET /contacts`, `POST /contacts/requests`, `POST /contacts/requests/{id}/accept`, `DELETE /contacts/requests/{id}` (decline or withdraw), `PUT /contacts/{id}` (ally/friend tier or block), `DELETE /contacts/{id}` (remove or unblock). A block deletes the other side's row so it looks like a removal; a request to a blocker or to an unknown steamId gets the same `202` as any other.
+- **Conversations**: `POST /conversations` (a DM is get-or-create and needs mutual allies; a palette starts with only its creator and pending invites), `POST /conversations/{id}/invites`, `POST /palette-invites/{id}/accept`, `DELETE /palette-invites/{id}`. Pending invitees live in `palette_invites`, never in `members`.
+- **Chat** (`ChatService`): `chat_message` frames are persisted idempotently on `(conversation, sender, client_message_id)`, acked to the sending socket (`chat_ack`), delivered to every other socket of every member (`chat_message_out`, the sender's other devices included) and refused with `chat_nack` (`invalid | too_long | not_member | not_allowed | rate_limited | internal`). A DM is checked against the contact graph on **every** send. Catch-up: `POST /sync` (per-conversation cursors; `delta` or `reset`; deletions since a cursor), scroll-up: `GET /conversations/{id}/messages?before=&limit=`, silent sender-only delete: `DELETE /conversations/{id}/messages/{messageId}` (soft: tombstone kept, `message_deleted` pushed to all members' sockets). Send rate: burst 10, 30/min per user.
+- **WS pushes** through a domain `EventSink` -> `WsEventSink` (`transport/ws`): `contact_request`, `contact_updated`, `palette_invite`, `conversation_added`, `conversation_updated`, `chat_message_out`, `message_deleted`. Best effort by design — a device that was offline reads `GET /contacts` and `POST /sync`.
+- **Outbound queue**: every `WsSession` has its own writer thread fed by a `BoundedFrameQueue` (512 frames / 4 MiB). Fan-out only enqueues (never waits on a socket); a client that falls behind is **disconnected** (close code 1013) and recovers through `POST /sync`.
+- **WS relay frames**: `sdp_offer` / `sdp_answer` / `ice_candidate` / `call_hangup` are relayed to the target steamId's connection(s) with `fromSteamId` stamped by the server. **No membership check yet.**
+- **Postgres storage** via `oatpp-postgresql` (pool of 10): `PgChatRepository`, `PgConversationRepository`, `PgContactRepository`, `PgSessionRepository`. **The schema migrates itself at startup** from `migrations/0001_init.sql`.
+- **Presence/fan-out**: `ConnectionHub` (one steamId -> many sockets, `weak_ptr`, sends outside the lock, `sendToAllExcept` for "everyone but the connection that sent it"). Instance-local, no Redis.
+- **Logging** to the console and `logs/log_file<MM-DD-YYYY>.csv`; **tests + CI** (see "Tests"); **deploy tooling** (see "Deployment").
 
-Still stubbed, throwing `notImplemented(...)` which `ErrorHandler` turns into a uniform 501 JSON naming the roadmap step:
+Still stubbed (`notImplemented` -> uniform 501): `CallSignalService::invite` (`call_invite` is logged only).
 
-- `ChatService::submit` (roadmap 4) — `WsSession::dispatch` logs `chat_message` and **does not call it**.
-- `CallSignalService::invite` (roadmap 5) — `call_invite` is logged only.
-- `GET /conversations/{conversationId}/messages?after=&limit=` -> 501 (`ConversationController`). The repository method behind it (`historyAfter`) works and is tested; the controller just isn't wired.
-
-Does not exist at all (not a stub — there is no code or port for it):
-
-- **Any way to create a conversation, palette or membership.** `ConversationRepository` is read-only (`isMember`/`members`/`conversationsOf`); there is no REST endpoint, no WS frame and no port method that inserts into `conversations`/`chat`/`palette`/`members`. The storage tests seed those rows with raw SQL. Until a creation path exists, `isMember` can never be true in a real deployment, which means the membership check (step 5) can't be switched on without also adding creation.
-- `chat_ack` / `chat_message_out` production, `incoming_call` / `call_accept` / `call_decline` / `peer_joined` / `call_leave` handling (the enum and DTOs exist; `dispatch` falls to `default:` and logs "unhandled frame type").
-- A way to deliver ICE (STUN/TURN) server config to clients; `compose` ships no coturn.
-- `game_queue` has a table and nothing else — no port, service or endpoint.
+Does not exist at all: handling of `incoming_call` / `call_accept` / `call_decline` / `peer_joined` / `call_leave` (the DTOs exist; `dispatch` logs "unhandled frame type"); a way to deliver ICE (STUN/TURN) config to clients and a coturn in compose; any code behind `game_queue`; leaving/kicking/renaming a palette and withdrawing an invite (not in the contract yet); the `friend` tier's only planned use (a Friend may add you to a palette without asking) is a **future release** — `friend` is stored and settable, nothing reads it.
 
 ## What this server actually does (per the client's multi-server design)
 
@@ -63,33 +57,38 @@ src/
     ServerRunner.hpp/.cpp     — bind with a real error instead of an abort; blocking server.run()
   dto/
     Envelope.hpp              — EnvelopeDto + payload DTOs
-    Rest.hpp                  — ErrorDto, AuthTokenDto, ConversationDto, MessagePageDto
+    Rest.hpp                  — REST-only DTOs: errors, auth, contacts, conversations, sync, history
+    Mappers.hpp               — domain -> wire DTOs, shared by REST and WS so a conversation looks the same either way
     MessageType.hpp/.cpp      — plain enum class + parse/toWireString
   domain/                     — plain C++: no oat++, no SQL, no sockets. The testable part.
-    Ids.hpp                   — strong types SteamId, ConversationId, MessageId
-    Message.hpp  Conversation.hpp  Session.hpp  Clock.hpp  Errors.hpp (notImplemented)
+    Ids.hpp                   — strong types SteamId, ConversationId, MessageId, ConnectionId
+    Message.hpp  Conversation.hpp  Contact.hpp  Session.hpp  Clock.hpp  Errors.hpp (notImplemented)
+    Events.hpp                — what the server tells connected clients, in domain terms
     ports/
-      ChatRepository.hpp  ConversationRepository.hpp  SessionRepository.hpp
+      ChatRepository.hpp  ConversationRepository.hpp  ContactRepository.hpp  SessionRepository.hpp
       PresenceRegistry.hpp    — "who is online on this instance"
-      SignalTransport.hpp     — "deliver this frame to that steamId"
+      SignalTransport.hpp     — "deliver this frame to that steamId" (+ "...except that connection")
+      EventSink.hpp           — publish a domain event; transport/ws turns it into frames
   service/
-    ChatService  AuthService  CallSignalService  Services.hpp/.cpp (makeServices)
+    ChatService  ContactService  ConversationService  AuthService  CallSignalService
+    Services.hpp/.cpp (makeServices)
   storage/                    — the only place SQL lives
     PicassoDatabaseClient.hpp — QUERY macros + startup SchemaMigration
-    Rows.hpp                  — result-row DTOs (ScalarInt64Row, MessageRow, SessionRow, ExistsRow)
-    PgChatRepository  PgConversationRepository  PgSessionRepository
-    Repositories.hpp/.cpp     — makeRepositories(dsn): pool + executor + the three repos
+    Rows.hpp  QueryCheck.hpp  — result-row DTOs; require()/returnedRow() helpers for query results
+    PgChatRepository  PgConversationRepository  PgContactRepository  PgSessionRepository
+    Repositories.hpp/.cpp     — makeRepositories(dsn): pool + executor + the repos
     migrations/0001_init.sql
   steam/
     OpenIdVerifier            — buildAuthUrl() + static verify() (check_authentication over TLS)
   logger/
     ActivityLogger  CsvLogger — console + daily CSV
   transport/
-    http/  HealthController  AuthController  ConversationController  ErrorHandler  HttpModule
-    ws/    WsController  WsModule  WsSession  ConnectionHub  EnvelopeCodec  Outbound
+    http/  HealthController  AuthController  ContactController  ConversationController  HttpSupport  ErrorHandler  HttpModule
+    ws/    WsController  WsModule  WsSession  BoundedFrameQueue  ConnectionHub  EnvelopeCodec  Outbound  WsEventSink
 test/
   transport/http/   HealthControllerTest + an in-process HttpTestServer
-  storage/          Chat/Conversation/Session repository tests against real Postgres
+  transport/ws/     BoundedFrameQueue and ConnectionHub tests (no socket needed)
+  storage/          repository + service tests against real Postgres (chat, contacts, conversations, sessions)
 static/             index.html docs.html not_found.html css/ js/
 config/             Caddyfile  prometheus.yml  grafana/provisioning/...
 deploy/firewall/    picasso-firewall.sh + systemd service/timer (installed by install.sh)
@@ -101,8 +100,8 @@ Each module directory owns a `CMakeLists.txt` declaring one static library and i
 
 Two module entry points are worth knowing about:
 
-- `service::makeServices` takes `PresenceRegistry` and `SignalTransport` as arguments rather than building them, because both are implemented by `ConnectionHub` — which lives a layer *above* in `transport/ws`.
-- That forces a two-phase composition root, spelled out in `app::buildComponents`: repositories -> hub -> services -> HTTP controllers -> WS endpoint. The order is a consequence of the layering, not a preference.
+- `service::makeServices` takes `PresenceRegistry`, `SignalTransport` and `EventSink` as arguments rather than building them: the first two are implemented by `ConnectionHub` and the last by `WsEventSink`, both in `transport/ws` — a layer *above*. Services decide who is told what (domain events); only `transport/ws` knows what a frame looks like, which is what keeps JSON and sockets out of `service/`.
+- That forces a multi-phase composition root, spelled out in `app::buildComponents`: repositories -> hub -> event sink -> services -> HTTP controllers -> WS endpoint. The order is a consequence of the layering, not a preference.
 
 ## Structural invariants
 
@@ -110,8 +109,10 @@ These are the reasons the layering exists. If a change makes one of them a matte
 
 - **`senderSteamId` comes from the authenticated connection, never from the payload.** Enforced by splitting inbound and outbound DTOs: `ChatMessageInDto` has no sender field at all, so there is nothing to trust. `ChatService::submit(SteamId sender, ...)` takes the sender as a parameter, and the only caller that can supply it is `WsSession`, whose identity is a `const` constructor argument set after the token check on upgrade. The identity is now backed by a real session lookup. For the relay frames the same rule is applied by overwriting `fromSteamId` server-side.
 - **SDP/ICE forwarding must be membership-checked — currently violated.** "Forward by `toSteamId` without parsing" taken literally makes the server an open relay: any authenticated user could push arbitrary payloads at any steamId, bypassing conversation membership. `CallSignalService::relayToPeer` forwards every `sdp_offer`/`sdp_answer`/`ice_candidate`/`call_hangup` with no check; a `TODO(roadmap step 4/5)` in `CallSignalService.cpp` says so. It is an open relay for *any authenticated* user (no longer for any integer, since auth is real). Closing it needs (a) a conversation-creation path (nothing can create one today) and (b) the client sending the **server's** conversation id (it currently sends its local Room id — see "Open contract items"). ICE candidates arrive in bursts, so the user's conversation set should be cached on the session at connect time (`conversationsOf`) rather than re-queried per candidate.
-- **One writer per socket.** Fan-out happens on another connection's thread, and oat++'s blocking `sendOneFrameText` is not safe to call concurrently on one socket. Today `WsSession::send` serialises with a mutex (safe, but a slow consumer blocks whoever is fanning out to it). The intended shape is an outbound queue with a single writer; bounding it gives backpressure, and the drop policy has **three** tiers, not two: chat is never dropped (the server is SSOT), call control and SDP are never dropped (losing an `sdp_offer` kills session setup silently and nothing retries it), and only `ice_candidate` may be dropped — candidates are numerous, partly redundant, and more keep arriving. See the `TODO(roadmap step 2)` in `WsSession.hpp`.
-- **Persist, then ack, then fan out.** `ChatService::submit` must not ack durability the database hasn't confirmed (shape is written out in the stub's comment).
+- **One writer per socket — enforced by construction.** oat++'s blocking `sendOneFrameText` is not safe to call concurrently, and fan-out happens on another connection's thread. So *nothing but a session's own writer thread writes to its socket*: every other thread (and the ping reply) only pushes onto a `BoundedFrameQueue`. The queue never blocks a pusher and never drops a chat frame; when a client cannot keep up it **overflows**, and the writer closes the connection (1013). That is safe only because catch-up is complete (`POST /sync`). The three-tier drop idea from the old design (only `ice_candidate` may be dropped) is **not implemented** — relayed frames are opaque strings at this layer, so an overflow disconnects regardless of type. `WsSession::shutdown()` must run before the socket is destroyed (the writer holds a raw pointer); `SessionFactory::onBeforeDestroy` does that.
+- **Per-conversation ordering.** A client's cursor is "the highest message id I hold", so ids must reach every recipient in commit order — if 11 arrived before 10, a disconnect in between would lose 10 for good. `ChatService` therefore holds a per-conversation lock (a striped mutex) from the insert until the delivery is *queued* on every recipient, and the delete path takes the same lock. This is valid only because queueing is non-blocking (above) and because the server is one process per deployment — if that ever changes (horizontal scaling), revisit it rather than patching with a database lock.
+- **Persist, then ack, then fan out.** The ack to the sender is produced from the stored row; the others are told only for a *new* message (a retry — `duplicate` — is acked again and delivered to nobody).
+- **Contacts gate DMs and palette invitations, never anything inside a palette.** `canCommunicate` is the one predicate; `ChatService` re-checks it on every DM send. An unknown steamId, a stranger and a blocker are deliberately answered identically (`not_allowed` / `403`) so the API is no probe for "who is on this server" or "who blocked me".
 
 Presence needs no external store — the multi-server design makes presence inherently instance-local, so `PresenceRegistry` is in-memory. No Redis, and no coturn in the compose stack (the earlier "oat++ + PostgreSQL + Redis + coturn" plan was revised in `../brainstorm/`; coturn is still wanted for ICE, see Open contract items).
 
@@ -133,61 +134,81 @@ One finding worth keeping if anyone reconsiders: **oat++'s `ENUM(...)` macro can
 
 ## Wire protocol
 
-One WS connection per client per server, carrying **both** chat and RTC signaling — every frame is an `EnvelopeDto`; `type` says which payload field is populated. All ids are **strings** on the wire (a 64-bit steamId doesn't survive a JSON number in every client).
+One WS connection per client per server, carrying **both** chat and RTC signaling — every frame is an `EnvelopeDto`; `type` says which payload field is populated. All ids are **strings** on the wire (a 64-bit steamId doesn't survive a JSON number in every client); all times are epoch **milliseconds**. The full contract with reasoning is `../brainstorm/chat-sync-contract.md`; the client's mirror of these shapes is `shared/.../data/server/Wire.kt`.
 
-| `type` | payload field | direction | meaning | `WsSession::dispatch` today |
-|---|---|---|---|---|
-| `chat_message` | `chatMessage` (`ChatMessageInDto`) | client → server | new message; `localMessageId` is the client's outbox row id | logged only, no service call (`ChatService::submit` still throws) |
-| `chat_ack` | `chatAck` (`ChatAckDto`) | server → sender | "your message landed" — echoes `localMessageId`, carries the server `messageId` | never produced |
-| `call_invite` | `callInvite` (`CallInviteDto`) | client → server | "start/join a call in this conversation" | logged only (`invite` still throws) |
-| `incoming_call` / `call_accept` / `call_decline` / `peer_joined` / `call_leave` | `callSignal` (`CallSignalDto`) | both | `{conversationId, steamId}` notifications | `default:` case, logged as "unhandled frame type" |
-| `sdp_offer` / `sdp_answer` | `sdp` (`SdpDto`) | both, routed by `toSteamId` | opaque SDP text, never parsed | relayed via `relayToPeer`, `fromSteamId` server-stamped, **no membership check** |
-| `ice_candidate` | `iceCandidate` (`IceCandidateDto`) | both, routed by `toSteamId` | opaque; the client packs `{sdpMid, sdpMLineIndex, candidate}` as nested JSON inside the one `candidate` string | relayed, same caveats |
-| `call_hangup` | `callHangup` (`CallHangupDto`) | both, routed by `toSteamId` | the frame itself is the hang-up | relayed, same caveats |
+| `type` | payload field | direction | meaning |
+|---|---|---|---|
+| `chat_message` | `chatMessage` `{conversationId, clientMessageId, body}` | client → server | a new message. `clientMessageId` is a UUID the client mints; there is **no sender field** |
+| `chat_ack` | `chatAck` `{conversationId, clientMessageId, message, duplicate}` | server → the sending socket only | stored; `message` carries the server id and clock; `duplicate` = a retry of one already stored |
+| `chat_nack` | `chatNack` `{conversationId, clientMessageId, code}` | server → the sending socket | refused: `not_member`, `not_allowed`, `too_long`, `invalid` are permanent; `rate_limited`, `internal` are worth a retry |
+| `chat_message_out` | `chatMessageOut` `{message}` | server → every other socket of every member | live delivery (the sender's other devices included) |
+| `message_deleted` | `messageDeleted` `{conversationId, messageId}` | server → every socket of every member | silent removal |
+| `conversation_added` / `conversation_updated` | `conversation` | server → clients | a DM/palette now includes this user / its membership changed |
+| `contact_request` | `contactRequest` `{steamId, createdAt}` | server → the target | someone asked to be your ally (not sent when silently dropped) |
+| `contact_updated` | `contactUpdated` `{steamId, level}` | server → both parties | their own row about `steamId` changed; `level` null = stranger (also how a block looks to the blocked) |
+| `palette_invite` | `paletteInvite` | server → the invitee | `state` `pending`, or `resolved` once handled on another device |
+| `call_invite` | `callInvite` | client → server | logged only (`invite` still throws) |
+| `incoming_call` / `call_accept` / `call_decline` / `peer_joined` / `call_leave` | `callSignal` | both | DTOs only; `dispatch` logs "unhandled frame type" |
+| `sdp_offer` / `sdp_answer` | `sdp` | both, routed by `toSteamId` | opaque SDP; relayed, `fromSteamId` server-stamped, **no membership check** |
+| `ice_candidate` | `iceCandidate` | both, routed by `toSteamId` | opaque; the client packs `{sdpMid, sdpMLineIndex, candidate}` as nested JSON inside the one `candidate` string |
+| `call_hangup` | `callHangup` | both, routed by `toSteamId` | the frame itself is the hang-up |
 
-`EnvelopeDto` also carries `chatMessageOut` (`ChatMessageOutDto`), reserved for fan-out to other members; no wire `type` maps to it yet. Malformed frames and unknown types are dropped and logged at debug; a throwing service call is caught in `dispatch` and logged so it can't take the connection down.
+Malformed frames and unknown types are dropped and logged at debug; a throwing service call is caught in `dispatch` and logged so it can't take the connection down. An unparsable `chat_message` is answered with `chat_nack{invalid}`.
 
-The shipped client (`features/impl-webrtc`) only speaks the four relay frames: it treats the **offer itself as the ring** (no `call_invite`/`incoming_call`/`call_accept`), and handles one call at a time. The `call_invite` flow in the DTOs is the planned richer protocol, not something the client uses.
+The shipped client only speaks the four relay frames for calls: the **offer itself is the ring**, one call at a time. `call_invite` and friends are the planned richer protocol, not something the client uses.
 
-A missed call needs no durability treatment — if the target isn't online, it just doesn't connect. Chat messages do, but durability there is entirely the client's job (durable local write before send, the outbox pattern in `../picassofrontend/CLAUDE.md`); the server needs no special handling for a disconnected recipient beyond "they'll get it next time they sync".
+A missed call needs no durability treatment. Chat does: the client keeps an outbox (see `../picassofrontend/CLAUDE.md`) and the server dedups its retries.
 
 ### REST surface
 
-| endpoint | status | notes |
-|---|---|---|
-| `GET /ping`, `/`, `/docs`, `/static/css/{n}`, `/static/js/{n}` | real | `/ping` is what the client's server-reachability check hits |
-| `GET /auth/steam/begin?state=` | real | 302 to Steam |
-| `GET /auth/steam/return` | real | forwards every `openid.*` param to Steam; parks token under `state` |
-| `GET /auth/steam/poll?state=` | real | 200 once, then 204 |
-| `POST /auth/logout` | real | Bearer; 204, idempotent |
-| `GET /ws` | real | Bearer session token |
-| `GET /conversations/{id}/messages?after=&limit=` | **501** | `MessagePageDto{messages, nextAfter}`; `limit` defaults to 100 — **clamp it** when implementing |
+Every endpoint except health and the login legs needs `Authorization: Bearer <session token>`; the caller's identity comes from it and nowhere else. A missing/invalid token is `401`.
 
-### Open contract items (need agreeing with the client before step 4)
+| endpoint | notes |
+|---|---|
+| `GET /ping`, `/`, `/docs`, `/static/css/{n}`, `/static/js/{n}` | `/ping` is what the client's server-reachability check hits |
+| `GET /auth/steam/begin?state=` · `GET /auth/steam/return` · `GET /auth/steam/poll?state=` · `POST /auth/logout` | login (see Status) |
+| `GET /ws` | WebSocket upgrade, Bearer session token |
+| `GET /contacts` | `{contacts, incoming, outgoing, paletteInvites}` — the caller's own view, blocklist included |
+| `POST /contacts/requests` `{steamId}` | `202` for every case that must look alike (waiting, silently dropped, unknown steamId); `200` if it resolved into a contact; `409 unblock_first`; `422` self; `429` over the limits (20/day, 50 pending) |
+| `POST /contacts/requests/{id}/accept` · `DELETE /contacts/requests/{id}` | accept; decline-or-withdraw (silent) |
+| `PUT /contacts/{id}` `{level}` · `DELETE /contacts/{id}` | `ally`/`friend` tier or `imposter` (block); remove or unblock |
+| `POST /conversations` | `{kind:"dm", peerSteamId}` (get-or-create, `200`/`201`) or `{kind:"palette", name, inviteSteamIds}` (all-or-nothing); `403 not_allowed` for anything not mutual allies |
+| `POST /conversations/{id}/invites` `{steamId}` · `POST /palette-invites/{id}/accept` · `DELETE /palette-invites/{id}` | invite (any member, own allies only); accept; decline (silent, 7-day re-invite cooldown) |
+| `POST /sync` | `{cursors:[{conversationId, after}], deletedSince?, limit?}` -> conversations (each `delta` or `reset`, with `hasMoreBefore`), `deleted`, `deletedCursor`. Walks **all** of the caller's conversations |
+| `GET /conversations/{id}/messages?before=&limit=` | scroll-up page, ascending, `hasMoreBefore`; `limit` is clamped to 200 |
+| `DELETE /conversations/{id}/messages/{messageId}` | silent delete, sender only, `204`, idempotent |
 
-1. **Sync mechanism.** The server is SSOT and the client's Room is a cache, but nothing tells the cache what it missed. Needs `chat_ack` to carry the server `messageId` plus the (stubbed) `GET /conversations/{id}/messages?after={id}`. Until then "they'll get it next time they sync" is unimplementable.
-2. **Timestamp units differ.** Server: `message_data.sent_at` and `ChatMessageOutDto.createdAt` are epoch **milliseconds**. Client: `MessageData.timestamp` is `Clock.System.now().epochSeconds`. One side must convert at the boundary; decide where.
-3. **Conversation id spaces.** Wire/server ids are the Postgres `bigint` identity. The client has its own autoincrement `Conversations.id` and a separate `Conversations.remoteId` for the server's id. Today the client sends the *local* id as `conversationId` in call frames, and creates DMs locally with `remoteId = peer steamId` as a placeholder. Both must switch to a real server id once conversations can be created here.
-4. **`kind` strings.** Server: `'dm'` / `'palette'`. Client Room: `"chat"` / `"palette"`. Map at the boundary; don't change either schema for it.
-5. **ICE servers.** The client configures no STUN/TURN (works on LAN/NAT-friendly paths only). Needs a delivery mechanism (e.g. in the login response or a REST call) *and* a coturn in the compose stack.
-6. **Conversation creation + membership** (see Status) — protocol undefined.
+`404` is used for "no such thing" and "not yours" alike so existence isn't revealed; those carry the JSON error body (see `jsonError`).
+
+### Open contract items
+
+1. **ICE servers.** The client configures no STUN/TURN (works on LAN/NAT-friendly paths only). Needs a delivery mechanism (e.g. in the login response or a REST call) *and* a coturn in the compose stack.
+2. **Relay membership check.** Now unblocked — both sides use server conversation ids — and still not done (`CallSignalService::relayToPeer`).
+3. The numbers (rate limits, body size, request caps) are placeholders from the contract; palette leave/kick/rename and withdrawing an invite are not designed yet.
 
 ## Database schema
 
-Lives in `src/storage/migrations/0001_init.sql` and **is applied at startup** by `SchemaMigration` (schema name `picasso_database`, version 1; statements are `CREATE ... IF NOT EXISTS`). A schema change means adding `0002_*.sql` and a matching `migration.addFile(2, ...)` in `PicassoDatabaseClient`'s constructor — don't edit 0001 in place on a deployed database.
+Lives in `src/storage/migrations/0001_init.sql` and **is applied at startup** by `SchemaMigration` (schema name `picasso_database`, version 1; statements are `CREATE ... IF NOT EXISTS`).
+
+> **Until the first build is handed to anyone running `install.sh`, schema changes are made IN PLACE in `0001_init.sql`** (the contacts, palette-invite and message-sync columns all landed that way). `SchemaMigration` records version 1 as applied, so an existing dev database must be **dropped** (`docker compose down -v`), or the new DDL never runs. After that freeze point a change becomes `0002_*.sql` plus a matching `migration.addFile(2, ...)` in `PicassoDatabaseClient`'s constructor — don't edit 0001 on a deployed database.
 
 ```
-users         (steam_id PK)                      — row created on a user's first login (PgSessionRepository::store)
+users         (steam_id PK)                      — a row on first login, or as a stub when someone sends them a contact request
 sessions      (token_hash PK, steam_id -> users ON DELETE CASCADE, created_at, expires_at, revoked_at)
 
 conversations (id identity PK, kind CHECK ('dm'|'palette'), created_at, UNIQUE(id, kind))
   +-- chat    (conversation_id PK, kind generated 'dm', member_a -> users, member_b -> users)
   +-- palette (conversation_id PK, kind generated 'palette', name)
-                +-- members (palette_id -> palette, user_id -> users, joined_at)
-                            PK(palette_id, user_id)
+                +-- members        (palette_id -> palette, user_id -> users, joined_at)   PK(palette_id, user_id)
+                +-- palette_invites(palette_id, invitee_id, inviter_id, created_at, declined_at) PK(palette_id, invitee_id)
 
 message_data  (id identity PK, conversation_id -> conversations, sender_steam_id -> users,
-               text_message, sent_at)           — index (conversation_id, id)
+               client_message_id, text_message, sent_at, deleted_at,
+               UNIQUE(conversation_id, sender_steam_id, client_message_id))
+               — index (conversation_id, id); partial index on deleted_at
+
+contacts         (owner_id, other_id, level CHECK ('imposter'|'ally'|'friend'), since)   PK(owner_id, other_id)
+contact_requests (from_id, to_id, created_at, declined_at)                               PK(from_id, to_id)
 
 game_queue    (id identity PK, user_id -> users, game_id int, priority, enqueued_at,
                UNIQUE(user_id, game_id))
@@ -199,9 +220,15 @@ All ids and timestamps are `bigint`; timestamps are epoch **milliseconds**, matc
 
 Decisions worth not re-litigating:
 
+- **`contacts` is directional, "stranger" is the absence of a row.** A row is "owner regards other as level": a block is one-sided and the ally/friend tier is what the *owner* shares. Ally-ness stays mutual because accepting writes both rows; a block deletes the other side's row (it looks like a removal to them); a removal deletes both. `canCommunicate` = both rows exist and are ally/friend.
+- **Pending palette invites are a table of their own, not a status on `members`**, so `isMember`/`members`/`conversationsOf` never need a filter — a forgotten filter would let a pending invitee read a palette.
+- **`client_message_id` is a client-minted UUID**, the idempotency key; deliberately not the client's Room row id (an app-data wipe restarts that at 1 and the server would drop a brand-new message as a "retry").
+- **Deletion is a tombstone.** `deleted_at` is set and the text emptied; the row stays, so the key above keeps working (a late retry cannot resurrect it) and no "client was offline too long" edge case exists. Every history read filters `deleted_at IS NULL`.
+- **Declines are kept as `declined_at` markers** (contact requests and palette invites) so a re-request/re-invite within 7 days is silently dropped without the sender learning of the decline.
+
 - **No `role` on `members`.** Within a Palette every member is an equal owner. Adding one later is a migration; enforcing a permission model that doesn't exist would be dead weight.
 - **`members` PK is the pair `(palette_id, user_id)`.** Keying on `palette_id` alone caps a Palette at one member.
-- **`message_data.id` is the primary key on its own**, global and monotonic, plus an index on `(conversation_id, id)`. A composite PK over `(id, conversation_id)` would not make `id` unique by itself, and the `?after={id}` sync contract depends on exactly that. Messages hang off `conversations`, not off `chat`/`palette`, so history works the same for a DM and a Palette.
+- **`message_data.id` is the primary key on its own**, global and monotonic, plus an index on `(conversation_id, id)`. A composite PK over `(id, conversation_id)` would not make `id` unique by itself, and the cursors of `POST /sync` depend on exactly that. Within one conversation ids are delivered in commit order (see the per-conversation lock under Structural invariants). Messages hang off `conversations`, not off `chat`/`palette`, so history works the same for a DM and a Palette.
 - **`sessions` is a table, not a column on `users`.** One row per user would cap a user at one live session, and `ConnectionHub` deliberately maps one steamId to several sockets. A hash also does not fit in a `bigint`.
 - **`token_hash`, not `token`.** The plaintext is returned once at login and never stored, so a database dump is not a set of live sessions. `expires_at` is separate from `revoked_at`: expiry is automatic, revocation is an explicit logout. (Nothing purges expired rows yet.)
 - **`CHECK (member_a < member_b)` on `chat`** rules out a conversation with yourself *and* forces one canonical ordering, so `UNIQUE (member_a, member_b)` can't be sidestepped by inserting the pair the other way round. Whoever writes the creation path must sort the pair.
@@ -273,15 +300,18 @@ After that succeeds once, `build/CMakePresets.json` exists and the presets work 
 
 Boost.Test, built by default (`-DPICASSO_BUILD_TESTS=OFF` to skip; the Dockerfile does):
 
-- `picasso_transport_http_test` — spins up an in-process server (`HttpTestServer`): `/ping`, unknown route -> 404, static-asset traversal rejected.
-- `picasso_storage_test` — integration tests against **real Postgres** named by `PICASSO_TEST_DB_DSN`; suites that need it report as skipped when it is unset, and CI makes an unreachable database fail rather than pass silently. **They `TRUNCATE` every table — never point this at a database you care about.** Covers chat append/history (ordering, `after`, limit, per-conversation scoping, verbatim text), membership (DM symmetric, palette, non-member, `members`, `conversationsOf`) and sessions (round-trip, revoke, duplicate hash, `store` upserting a missing user), plus `makeRepositories("")` throwing.
+- `picasso_transport_http_test` — an in-process server (`HttpTestServer`): `/ping`, unknown route -> 404, static-asset traversal rejected.
+- `picasso_transport_ws_test` — no socket needed: `BoundedFrameQueue` (overflow disconnects instead of dropping or blocking; byte limit; close wakes a blocked writer) and `ConnectionHub` ("everyone except the connection that sent it").
+- `picasso_storage_test` — integration tests against **real Postgres** named by `PICASSO_TEST_DB_DSN`; suites that need it report as skipped when it is unset, and CI makes an unreachable database fail rather than pass silently. **They `TRUNCATE` every table — never point this at a database you care about.** Covers the repositories (chat: idempotent append, newest/older paging, soft delete, `deletedSince`; contacts; conversations; sessions) **and the services on top of them** (`ChatServiceTest`: idempotency, delivery to everyone but the origin connection, stranger/frozen-DM refusals, validation and rate limiting with a controllable clock, **concurrent senders delivered in id order**, `delta`/`reset` sync, history paging, silent delete; `SocialServiceTest`: the contact state machine, indistinguishable answers for blocked/unknown, palette invites, pushed events).
 
-CI: `.github/workflows/main.yaml` (named `http-test`; PRs and pushes to `main`) installs gcc-11, Conan and a `postgres:17` service, then builds and runs both suites. Not covered by any test: `AuthService`, the OpenID flow, `WsSession`/`ConnectionHub`, the controllers beyond health, `redactDsn`. `domain/` + `ConnectionHub` are written to be testable without a server.
+The client has its own suite against a *running* server — `shared/src/jvmTest/.../ChatIntegrationTest.kt` and `ChatEndToEndTest.kt` (real Room, real WebSockets, real `SyncCoordinator`); see `../picassofrontend/CLAUDE.md`. They need the server seeded with users `1..200` having sessions `tok-<n>` (steamId `76561198000000000 + n`).
 
-Local equivalent of what CI does (after the bootstrap above; derived from the CI workflow and `test/CMakeLists.txt`, not run while writing this):
+CI: `.github/workflows/main.yaml` (named `http-test`) installs gcc-11, Conan and a `postgres:17` service, then builds and runs the http, ws and storage suites. Not covered by any test: `AuthService`, the OpenID flow, `WsSession` itself (the pieces it is made of are), the controllers beyond health, `redactDsn`.
+
+Local equivalent (macOS notes: no cmake/ninja on PATH — use CLion's; configure out of tree; `docker run postgres:17` for the DSN):
 
 ```
-cmake --build build --config Release --target picasso_transport_http_test picasso_storage_test
+cmake --build build --config Release --target picasso_transport_http_test picasso_transport_ws_test picasso_storage_test
 PICASSO_TEST_DB_DSN="host=127.0.0.1 port=5432 dbname=picasso_test user=picasso password=picasso" \
   ctest --test-dir build -C Release --output-on-failure
 ```
@@ -295,7 +325,7 @@ PICASSO_DB_DSN="host=127.0.0.1 dbname=picasso_database user=picasso password=...
 curl -i http://127.0.0.1:8000/ping         # -> 200, "pong", X-Service-Status: Healthy
 curl -i http://127.0.0.1:8000/             # -> 200, static/index.html
 curl -i http://127.0.0.1:8000/ws           # -> 401 (no token)
-curl -i http://127.0.0.1:8000/conversations/1/messages   # -> 501 JSON naming roadmap step 4
+curl -i http://127.0.0.1:8000/contacts     # -> 401 (no token)
 
 docker compose up -d --build               # full stack; needs POSTGRES_PASSWORD in .env
 ```
@@ -304,34 +334,35 @@ docker compose up -d --build               # full stack; needs POSTGRES_PASSWORD
 
 ## Roadmap
 
-Order is constrained, not arbitrary: step 3 must precede step 4, or the first rows written to `message_data` carry an unverified sender. Step 5 follows 4 because membership comes from the database.
+Order was constrained, not arbitrary: auth before storage (the first rows of `message_data` must carry a verified sender), storage before the relay check (membership comes from the database).
 
-1. ~~**Skeleton** — `app/`, config from env, a real error on a failed bind, one JSON error handler.~~ Done.
-2. **WS transport** — hub, session, codec done; relay frames wired. Missing: dispatch for `chat_message`/`call_invite`, and the bounded single-writer outbound queue. Unblocks the client: `ChatRepository.sendToServer()` needs this plus step 4.
-3. ~~**Auth** — Steam OpenID, session tokens, validation on WS upgrade.~~ Done in functionality (login/poll/logout, hashed sessions, real WS auth). **Hardening still owed** — see Known gaps (OpenID `return_to` check, expired-session purge).
-4. **Storage** — repositories and migrations are done. Remaining: **conversation/palette/member creation path**, `ChatService::submit` (persist -> ack -> fan out), `GET /conversations/{id}/messages`, and settling the contract items above.
-5. **RTC signaling** — forwarding is implemented; the membership check is not and depends on step 4's creation path. `invite()` and the richer call frames are unimplemented (the client doesn't need them yet). Add ICE-server delivery + coturn.
-6. **Ops** (new) — graceful shutdown, published image instead of VPS compilation, `/metrics`, applying `PICASSO_LOG_LEVEL`, session purge.
+1. ~~**Skeleton**~~ Done.
+2. ~~**WS transport**~~ Done: hub, session, codec, relay frames, per-connection writer + bounded queue, chat dispatch, event sink.
+3. ~~**Auth**~~ Done in functionality. **Hardening owed** — OpenID `return_to` check, expired-session purge.
+4. ~~**Storage + conversation creation + contacts + chat**~~ Done (2026-10-09). Remaining there: palette leave/kick/rename and invite withdrawal (not in the contract yet).
+5. **RTC signaling** — forwarding works; the **membership check is the next small step** (the data it needs now exists and the client sends server ids). `invite()` and the richer call frames are unimplemented (the client doesn't need them). Add ICE-server delivery + coturn.
+6. **Ops** — graceful shutdown, published image instead of VPS compilation, `/metrics`, applying `PICASSO_LOG_LEVEL`, session purge.
 
 ## Known WIP / gaps
 
-> **Security note:** safer than before (a bearer token must now be a real, unexpired, unrevoked session), but still **not safe to expose on a public network**:
+> **Security note:** safer than before, but still **not safe to expose on a public network**:
 > - `CallSignalService::relayToPeer` forwards signaling frames from any authenticated user to any steamId with no conversation-membership check.
 > - `OpenIdVerifier::verify` forwards the assertion to Steam but never checks that `openid.return_to` / `openid.realm` is *this* server's URL, nor that `claimed_id` is under `https://steamcommunity.com/openid/id/`. Steam's `check_authentication` only proves Steam signed the assertion for *some* relying party, so an assertion obtained by a different site could be accepted here and mint a session for that user. Compare `return_to` against `publicUrl_` (and bind it to the pending `state`) before this faces the internet.
 > - `install.sh` cannot fix either; its own header says so.
+> - An inbound WS message is buffered without a size cap (`WsSession::inbound_`); a hostile client can make the server buffer arbitrarily much. Cap it and close with 1009.
 
-- **Chat frames are decoded but not acted on** — `ChatService::submit` is a stub; nothing is ever written to `message_data` by the server.
-- **No conversation creation path** (see Status) — the largest structural hole; it blocks chat, membership and the client's DM/Palette creation at once.
-- **`GET /conversations/{id}/messages` answers 501.**
-- **RTC relay has no membership check.**
-- **`WsSession` serialises sends with a mutex, not a bounded queue**, and has no liveness tracking (`onPong` is a no-op).
-- **No graceful shutdown** — `server.run()` blocks until the process is killed; there is no SIGTERM/SIGINT handling anywhere (the old comment claiming `ServerRunner` names it is gone). A `docker stop` therefore waits out the grace period and kills the process.
+- **Uncommitted `Dockerfile` edit worth checking:** the builder stage installs `g++-20 gcc-20`, which Ubuntu 22.04 does not package; the verified toolchain is `g++-11` (CI and the build section above). Revert unless a newer base image is being adopted on purpose.
+- **Chat is built but not load-tested**; the bounded queue's limits (512 frames / 4 MiB) and the rate limits are placeholders. An overflow closes the connection with 1013 and the client relies on its reconnect + `/sync` — verified in unit tests and by the client's end-to-end suite, but not under a real slow consumer.
+- **A retry of a message that was deleted since returns the tombstone** (`duplicate: true`, empty body) rather than a rejection; the client then resolves its row with an empty text. Reachable only if another device deleted a message whose ack was lost — rare, and the next sync deletes it locally.
+- **RTC relay has no membership check.** `ice_candidate` is never dropped under pressure (see the one-writer invariant).
+- **`onPong` is a no-op** — no liveness tracking of idle connections.
+- **No graceful shutdown** — `server.run()` blocks until the process is killed; no SIGTERM/SIGINT handling anywhere.
 - **Expired/revoked sessions are never purged**; pending logins are in-memory (lost on restart, single instance only).
 - **`PICASSO_LOG_LEVEL` is read but unused.** The CSV logger records everything the console does.
-- **The Steam `check_authentication` call builds a fresh TLS client per login** (`OpenIdVerifier::verify` is `static`) — fine at friend-group scale.
+- **The Steam `check_authentication` call builds a fresh TLS client per login** — fine at friend-group scale.
 - **Monitoring is host-level only** — no application metrics.
 - **No coturn / STUN-TURN config delivery**, so calls only work on LAN / NAT-friendly paths.
-- **`README.md` is a stub** (install one-liner + `PICASSO_DOMAIN`); `static/docs.html` is the real user doc.
+- **`README.md` is a stub**; `static/docs.html` is the real user doc.
 - `static/` root and migrations path are compile-time absolute constants — fine in the container (same `WORKDIR`), brittle anywhere else.
 
-Closed since the previous revision: real Steam OpenID + hashed sessions + real WS auth; Postgres repositories and self-applying migrations; structured CSV logging; compose/Caddy/Grafana/firewall/Cloudflare deployment; Boost.Test suites and CI; `PICASSO_*` config with DSN redaction; failed-bind handling; RTC relay frames reaching `CallSignalService`.
+Closed since the previous revision: contacts (directional graph, requests, blocks, tiers), conversation and palette creation with confirmed invitations, idempotent chat with ack/nack/fan-out, `POST /sync`, history paging, silent delete, the bounded single-writer outbound queue, and the domain event sink.

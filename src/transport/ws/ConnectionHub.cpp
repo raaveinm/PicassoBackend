@@ -17,18 +17,13 @@ namespace picasso::transport::ws {
         const std::unique_lock lock(mutex_);
 
         const auto entry = connections_.find(steamId);
-        if (entry == connections_.end()) {
-            return;
-        }
+        if (entry == connections_.end()) { return; }
 
         auto& sockets = entry->second;
-        /* Drops the departing connection and any that expired without a clean close. */
-        sockets.erase(std::remove_if(sockets.begin(), sockets.end(),
-                                     [connection](const std::weak_ptr<Outbound>& candidate) {
-                                         const auto locked = candidate.lock();
-                                         return locked == nullptr || locked.get() == connection;
-                                     }),
-                      sockets.end());
+        std::erase_if(sockets,[connection](const std::weak_ptr<Outbound>& candidate) {
+            const auto locked = candidate.lock();
+            return locked == nullptr || locked.get() == connection;
+        });
 
         if (sockets.empty()) {
             connections_.erase(entry);
@@ -61,6 +56,20 @@ namespace picasso::transport::ws {
     void ConnectionHub::sendToAll(const std::vector<domain::SteamId>& steamIds, const std::string& frame) {
         for (const auto& steamId : steamIds) {
             sendTo(steamId, frame);
+        }
+    }
+
+    void ConnectionHub::sendToAllExcept(
+        const std::vector<domain::SteamId>& steamIds,
+        const std::string& frame,
+        const domain::ConnectionId except
+    ) {
+        for (const auto& steamId : steamIds) {
+            for (const auto& connection : resolve(steamId)) {
+                if (connection->connectionId() != except) {
+                    connection->send(frame);
+                }
+            }
         }
     }
 

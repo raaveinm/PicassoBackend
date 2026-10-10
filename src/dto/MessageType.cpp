@@ -9,10 +9,13 @@
 
 namespace picasso::dto {
     namespace {
-        constexpr std::array<std::pair<MessageType, const char*>, 18> kWireNames{{
+        constexpr std::array<std::pair<MessageType, const char*>, 21> kWireNames{{
             {MessageType::Unknown, ""},
             {MessageType::ChatMessage, "chat_message"},
             {MessageType::ChatAck, "chat_ack"},
+            {MessageType::ChatNack, "chat_nack"},
+            {MessageType::ChatMessageOut, "chat_message_out"},
+            {MessageType::MessageDeleted, "message_deleted"},
             {MessageType::CallInvite, "call_invite"},
             {MessageType::IncomingCall, "incoming_call"},
             {MessageType::CallAccept, "call_accept"},

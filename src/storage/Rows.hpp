@@ -33,8 +33,15 @@ namespace picasso::storage {
         DTO_FIELD(Int64, id);
         DTO_FIELD(Int64, conversation_id);
         DTO_FIELD(Int64, sender_steam_id);
+        DTO_FIELD(String, client_message_id);
         DTO_FIELD(String, text_message);
         DTO_FIELD(Int64, sent_at);
+    };
+
+    class DeletedMessageRow : public oatpp::DTO {
+        DTO_INIT(DeletedMessageRow, DTO)
+        DTO_FIELD(Int64, conversation_id);
+        DTO_FIELD(Int64, message_id);
     };
 
     class ExistsRow : public oatpp::DTO {

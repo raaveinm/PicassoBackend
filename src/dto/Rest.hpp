@@ -72,15 +72,49 @@ namespace picasso::dto {
         DTO_FIELD(List<Object<PaletteInviteDto>>, paletteInvites);
     };
 
-    /*
-     * Cache sync payload. nextAfter is what the client passes as ?after= next time;
-     * null means it has caught up with the server.
-     */
+    /* GET /conversations/{id}/messages?before= - one scroll-up page, ascending. */
     class MessagePageDto : public oatpp::DTO {
         DTO_INIT(MessagePageDto, DTO)
 
-        DTO_FIELD(List<Object<ChatMessageOutDto>>, messages);
-        DTO_FIELD(String, nextAfter);
+        DTO_FIELD(List<Object<MessageDto>>, messages);
+        DTO_FIELD(Boolean, hasMoreBefore);
+    };
+
+    /* What this device holds for one conversation: the highest message id it has. */
+    class SyncCursorDto : public oatpp::DTO {
+        DTO_INIT(SyncCursorDto, DTO)
+
+        DTO_FIELD(String, conversationId);
+        DTO_FIELD(String, after);
+    };
+
+    /* POST /sync. A conversation missing from `cursors` is one the client holds nothing of. */
+    class SyncRequestDto : public oatpp::DTO {
+        DTO_INIT(SyncRequestDto, DTO)
+
+        DTO_FIELD(List<Object<SyncCursorDto>>, cursors);
+        /* The previous response's deletedCursor; absent on the first sync. */
+        DTO_FIELD(String, deletedSince);
+        DTO_FIELD(Int32, limit);
+    };
+
+    class SyncConversationDto : public oatpp::DTO {
+        DTO_INIT(SyncConversationDto, DTO)
+
+        DTO_FIELD(Object<ConversationDto>, conversation);
+        /* "delta" = append `messages`; "reset" = discard the cached confirmed range and install them. */
+        DTO_FIELD(String, mode);
+        DTO_FIELD(Boolean, hasMoreBefore);
+        DTO_FIELD(List<Object<MessageDto>>, messages);
+    };
+
+    class SyncResponseDto : public oatpp::DTO {
+        DTO_INIT(SyncResponseDto, DTO)
+
+        DTO_FIELD(String, serverTime);
+        DTO_FIELD(String, deletedCursor);
+        DTO_FIELD(List<Object<SyncConversationDto>>, conversations);
+        DTO_FIELD(List<Object<MessageDeletedDto>>, deleted);
     };
 } // namespace picasso::dto
 

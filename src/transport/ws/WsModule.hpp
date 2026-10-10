@@ -14,6 +14,7 @@
 #include "transport/ws/ConnectionHub.hpp"
 
 namespace picasso::transport::ws {
+    constexpr std::string WS_MODULE_TAG{"WS_MODULE"};
     /*
      * Handles owned by the caller for the process lifetime. The connection handler
      * and the instance listener must outlive every socket they created, and nothing
@@ -30,8 +31,9 @@ namespace picasso::transport::ws {
      * PresenceRegistry and SignalTransport, and the services have to exist before
      * this call, because sessions dispatch into them. Two-phase by necessity.
      */
-    WsEndpoint registerWsEndpoint(const std::shared_ptr<oatpp::web::server::HttpRouter>& router,
-                                  const std::shared_ptr<oatpp::data::mapping::ObjectMapper>& objectMapper,
-                                  const std::shared_ptr<ConnectionHub>& hub,
-                                  const service::Services& services);
+    WsEndpoint registerWsEndpoint(
+        const std::shared_ptr<oatpp::web::server::HttpRouter>& router,
+        const std::shared_ptr<oatpp::data::mapping::ObjectMapper>& objectMapper,
+        const std::shared_ptr<ConnectionHub>& hub,
+        const service::Services& services);
 } // namespace picasso::transport::ws

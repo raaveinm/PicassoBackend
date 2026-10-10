@@ -67,6 +67,7 @@ namespace picasso::transport::ws {
                 }
 
                 hub_->remove(session->steamId(), session.get());
+                session->shutdown();
                 OATPP_LOGI("WsModule", "session closed for %lu", session->steamId().value());
             }
 

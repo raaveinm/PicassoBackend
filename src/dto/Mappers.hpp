@@ -10,6 +10,7 @@
 
 #include "domain/Contact.hpp"
 #include "domain/Conversation.hpp"
+#include "domain/Message.hpp"
 #include "domain/Ids.hpp"
 #include "dto/Envelope.hpp"
 
@@ -23,9 +24,9 @@ namespace picasso::dto {
     /// Domain -> DTO
     ///////////////////////////////////////////////
 
-    inline oatpp::Object<dto::ConversationDto> toDto(const domain::Conversation& conversation,
+    inline oatpp::Object<ConversationDto> toDto(const domain::Conversation& conversation,
                                                      const bool writable = true) {
-        auto body = dto::ConversationDto::createShared();
+        auto body = ConversationDto::createShared();
         body->id = oatpp::String(std::to_string(conversation.id.value()));
         body->kind = oatpp::String(std::string(domain::toWireString(conversation.kind)));
         if (conversation.name) { body->name = oatpp::String(*conversation.name); }
@@ -35,6 +36,17 @@ namespace picasso::dto {
         for (const auto& invitee : conversation.invited) { body->invited->push_back(wire(invitee)); }
         body->writable = writable;
         body->createdAt = conversation.created_at_epoch_ms;
+        return body;
+    }
+
+    inline oatpp::Object<dto::MessageDto> toDto(const domain::Message& message) {
+        auto body = dto::MessageDto::createShared();
+        body->id = oatpp::String(std::to_string(message.id.value()));
+        body->conversationId = oatpp::String(std::to_string(message.conversation_id.value()));
+        body->senderSteamId = wire(message.sender_steam_id);
+        body->clientMessageId = oatpp::String(message.client_message_id);
+        body->body = oatpp::String(message.text_message);
+        body->createdAt = message.created_at_epoch_ms;
         return body;
     }
 

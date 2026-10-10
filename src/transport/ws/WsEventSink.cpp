@@ -70,9 +70,27 @@ namespace picasso::transport::ws {
                     envelope->conversation = dto::toDto(e.conversation);
                     transport_->sendTo(e.to, codec_->encode(envelope));
                 },
+                [this](const domain::ChatDelivered& e) {
+                    const auto envelope = EnvelopeCodec::envelopeOf(dto::MessageType::ChatMessageOut);
+                    envelope->chatMessageOut = dto::ChatMessageOutDto::createShared();
+                    envelope->chatMessageOut->message = dto::toDto(e.message);
+                    const auto frame = codec_->encode(envelope);
+                    if (e.except) {
+                        transport_->sendToAllExcept(e.to, frame, *e.except);
+                    } else {
+                        transport_->sendToAll(e.to, frame);
+                    }
+                },
+                [this](const domain::MessageRemoved& e) {
+                    const auto envelope = EnvelopeCodec::envelopeOf(dto::MessageType::MessageDeleted);
+                    envelope->messageDeleted = dto::MessageDeletedDto::createShared();
+                    envelope->messageDeleted->conversationId = oatpp::String(std::to_string(e.conversation_id.value()));
+                    envelope->messageDeleted->messageId = oatpp::String(std::to_string(e.message_id.value()));
+                    transport_->sendToAll(e.to, codec_->encode(envelope));
+                },
             }, event);
         } catch (const std::exception& error) {
-            OATPP_LOGW(TAG.c_str(), "dropping event: %s", error.what());
+            OATPP_LOGW(TAG, "dropping event: %s", error.what());
         }
     }
 } // namespace picasso::transport::ws

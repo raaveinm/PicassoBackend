@@ -5,6 +5,7 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <cstdlib>
 #include <initializer_list>
@@ -25,6 +26,8 @@
 #include "domain/Contact.hpp"
 #include "domain/Ids.hpp"
 #include "domain/ports/EventSink.hpp"
+#include "domain/Clock.hpp"
+#include "service/ChatService.hpp"
 #include "service/ContactService.hpp"
 #include "service/ConversationService.hpp"
 #include "storage/Repositories.hpp"
@@ -182,10 +185,23 @@ namespace picasso::test {
      */
     class StorageFixture {
     public:
-        StorageFixture() : db_(TestDatabase::instance()) {
+        StorageFixture() : db_(TestDatabase::instance()), clock_ms_(domain::nowEpochMs()) {
             check(db_.seed->truncateAll(), "truncateAll");
             db_.events->take();         // a previous test's events must not leak into this one
+            // Per fixture, not per process: the service keeps per-user rate-limit state, and a test
+            // must not inherit another test's used-up tokens.
+            chat_service_ = std::make_shared<service::ChatService>(
+                db_.repositories.chat,
+                db_.repositories.conversations,
+                db_.repositories.contacts,
+                db_.events,
+                [this] { return clock_ms_.load(); });
         }
+
+        [[nodiscard]] service::ChatService& chatService() const { return *chat_service_; }
+
+        /* The chat service's clock: starts at the real time, moves only when a test moves it. */
+        void advanceClock(const std::int64_t milliseconds) { clock_ms_ += milliseconds; }
 
         [[nodiscard]] domain::ChatRepository& chat() const { return *db_.repositories.chat; }
         [[nodiscard]] domain::ConversationRepository& conversations() const { return *db_.repositories.conversations; }
@@ -256,5 +272,7 @@ namespace picasso::test {
         }
 
         TestDatabase& db_;
+        std::atomic<std::int64_t> clock_ms_;
+        std::shared_ptr<service::ChatService> chat_service_;
     };
 } // namespace picasso::test

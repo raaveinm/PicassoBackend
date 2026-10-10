@@ -19,30 +19,64 @@ namespace picasso::dto {
         DTO_INIT(ChatMessageInDto, DTO)
 
         DTO_FIELD(String, conversationId);
-        DTO_FIELD(String, localMessageId);
+        /* A UUID the client mints with the message: the idempotency key, echoed back in the ack. */
+        DTO_FIELD(String, clientMessageId);
         DTO_FIELD(String, body);
     };
 
-    /* Outbound chat - server-stamped sender and id. */
-    class ChatMessageOutDto : public oatpp::DTO {
-        DTO_INIT(ChatMessageOutDto, DTO)
+    /*
+     * A stored message, exactly as every client sees it. Ids are strings (SteamIDs do not fit
+     * a double); createdAt is the SERVER's clock in epoch milliseconds.
+     */
+    class MessageDto : public oatpp::DTO {
+        DTO_INIT(MessageDto, DTO)
 
+        DTO_FIELD(String, id);
         DTO_FIELD(String, conversationId);
-        DTO_FIELD(String, messageId);
         DTO_FIELD(String, senderSteamId);
+        DTO_FIELD(String, clientMessageId);
         DTO_FIELD(String, body);
         DTO_FIELD(Int64, createdAt);
     };
 
-    /*
-     * Carries messageId as well as the echoed localMessageId: the client needs the
-     * server id to resolve its PENDING row *and* to know where its cache now ends.
+    // server -> every other socket of every member (the sender's own other devices included)
+    class ChatMessageOutDto : public oatpp::DTO {
+        DTO_INIT(ChatMessageOutDto, DTO)
+
+        DTO_FIELD(Object<MessageDto>, message);
+    };
+
+    /**
+     * server -> the socket that sent it, and only that socket. Carries the whole stored
+     * message, because the client needs the server id (to resolve its PENDING row and to know
+     * where its cache now ends) AND the server's timestamp. `duplicate` = this was a retry of
+     * a message that was already stored.
      */
     class ChatAckDto : public oatpp::DTO {
         DTO_INIT(ChatAckDto, DTO)
 
         DTO_FIELD(String, conversationId);
-        DTO_FIELD(String, localMessageId);
+        DTO_FIELD(String, clientMessageId);
+        DTO_FIELD(Object<MessageDto>, message);
+        DTO_FIELD(Boolean, duplicate);
+    };
+
+    /*
+     * The send was refused. `code`: not_member | not_allowed | too_long | invalid are
+     * permanent (the client fails the message); rate_limited | internal are worth a retry.
+     */
+    class ChatNackDto : public oatpp::DTO {
+        DTO_INIT(ChatNackDto, DTO)
+
+        DTO_FIELD(String, conversationId);
+        DTO_FIELD(String, clientMessageId);
+        DTO_FIELD(String, code);
+    };
+
+    class MessageDeletedDto : public oatpp::DTO {
+        DTO_INIT(MessageDeletedDto, DTO)
+
+        DTO_FIELD(String, conversationId);
         DTO_FIELD(String, messageId);
     };
 
@@ -156,6 +190,8 @@ namespace picasso::dto {
         DTO_FIELD(Object<ChatMessageInDto>, chatMessage);
         DTO_FIELD(Object<ChatMessageOutDto>, chatMessageOut);
         DTO_FIELD(Object<ChatAckDto>, chatAck);
+        DTO_FIELD(Object<ChatNackDto>, chatNack);
+        DTO_FIELD(Object<MessageDeletedDto>, messageDeleted);
         DTO_FIELD(Object<CallInviteDto>, callInvite);
         DTO_FIELD(Object<CallSignalDto>, callSignal);
         DTO_FIELD(Object<SdpDto>, sdp);

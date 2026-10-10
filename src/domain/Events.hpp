@@ -7,10 +7,12 @@
 #include <cstdint>
 #include <optional>
 #include <variant>
+#include <vector>
 
 #include "domain/Contact.hpp"
 #include "domain/Conversation.hpp"
 #include "domain/Ids.hpp"
+#include "domain/Message.hpp"
 
 namespace picasso::domain {
     /**
@@ -58,10 +60,30 @@ namespace picasso::domain {
         Conversation conversation;
     };
 
+    /*
+     * A message was stored. Goes to every socket of every member EXCEPT [except] - the
+     * connection that sent it, which is answered with an ack instead. The sender's other
+     * devices are in [to], and so receive it.
+     */
+    struct ChatDelivered {
+        std::vector<SteamId> to;
+        Message message;
+        std::optional<ConnectionId> except;
+    };
+
+    // A message was deleted (silently): every socket of every member drops it
+    struct MessageRemoved {
+        std::vector<SteamId> to;
+        ConversationId conversation_id;
+        MessageId message_id;
+    };
+
     using Event = std::variant<
         ContactRequested,
         ContactChanged,
         PaletteInviteChanged,
         ConversationAdded,
-        ConversationUpdated>;
+        ConversationUpdated,
+        ChatDelivered,
+        MessageRemoved>;
 } // namespace picasso::domain

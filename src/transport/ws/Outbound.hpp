@@ -6,6 +6,8 @@
 
 #include <string>
 
+#include "domain/Ids.hpp"
+
 namespace picasso::transport::ws {
     /*
      * What the hub is allowed to do to a connection. Deliberately narrower than the
@@ -16,7 +18,10 @@ namespace picasso::transport::ws {
     public:
         virtual ~Outbound() = default;
 
-        /* Must be safe to call from any thread - fan-out runs on the sender's thread. */
+         // Must be safe to call from any thread - fan-out runs on the sender's thread - and must
         virtual void send(const std::string& frame) = 0;
+
+        /* Identifies this connection, so a fan-out can skip the one that sent the message. */
+        virtual domain::ConnectionId connectionId() const = 0;
     };
 } // namespace picasso::transport::ws

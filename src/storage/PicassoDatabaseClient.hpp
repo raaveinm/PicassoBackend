@@ -41,24 +41,80 @@ namespace picasso::storage {
             "INSERT INTO users VALUES (:steam_id) ON CONFLICT (steam_id) DO NOTHING;",
             PARAM(oatpp::Int64, steam_id))
 
+        // ON CONFLICT DO NOTHING + RETURNING: a row comes back only if this call inserted it, which is
+        // how the caller tells a first send from a retry of one that is already stored.
         QUERY(insertMessage,
-            "INSERT INTO message_data (conversation_id, sender_steam_id, text_message, sent_at) "
-            "VALUES (:conversation_id, :sender_steam_id, :text_message, :sent_at) "
-            "RETURNING id AS value;",
+            "INSERT INTO message_data (conversation_id, sender_steam_id, client_message_id, text_message, sent_at) "
+            "VALUES (:conversation_id, :sender_steam_id, :client_message_id, :text_message, :sent_at) "
+            "ON CONFLICT (conversation_id, sender_steam_id, client_message_id) DO NOTHING "
+            "RETURNING id, conversation_id, sender_steam_id, client_message_id, text_message, sent_at;",
             PARAM(oatpp::Int64, conversation_id),
             PARAM(oatpp::Int64, sender_steam_id),
+            PARAM(oatpp::String, client_message_id),
             PARAM(oatpp::String, text_message),
             PARAM(oatpp::Int64, sent_at))
 
-        QUERY(selectMessagesAfter,
-            "SELECT id, conversation_id, sender_steam_id, text_message, sent_at "
+        // Includes a deleted row: a retry of a message that was deleted since must find it, not insert it again.
+        QUERY(selectMessageByClientId,
+            "SELECT id, conversation_id, sender_steam_id, client_message_id, text_message, sent_at "
             "FROM message_data "
-            "WHERE conversation_id = :conversation_id AND id > :after_id "
-            "ORDER BY id ASC "
+            "WHERE conversation_id = :conversation_id AND sender_steam_id = :sender_steam_id "
+            "  AND client_message_id = :client_message_id;",
+            PARAM(oatpp::Int64, conversation_id),
+            PARAM(oatpp::Int64, sender_steam_id),
+            PARAM(oatpp::String, client_message_id))
+
+        // DESC + LIMIT picks the NEWEST rows; the repository reverses them into ascending order.
+        QUERY(selectNewestMessages,
+            "SELECT id, conversation_id, sender_steam_id, client_message_id, text_message, sent_at "
+            "FROM message_data "
+            "WHERE conversation_id = :conversation_id AND id > :after_id AND deleted_at IS NULL "
+            "ORDER BY id DESC "
             "LIMIT :limit_count;",
             PARAM(oatpp::Int64, conversation_id),
             PARAM(oatpp::Int64, after_id),
             PARAM(oatpp::Int32, limit_count))
+
+        QUERY(selectOlderMessages,
+            "SELECT id, conversation_id, sender_steam_id, client_message_id, text_message, sent_at "
+            "FROM message_data "
+            "WHERE conversation_id = :conversation_id AND id < :before_id AND deleted_at IS NULL "
+            "ORDER BY id DESC "
+            "LIMIT :limit_count;",
+            PARAM(oatpp::Int64, conversation_id),
+            PARAM(oatpp::Int64, before_id),
+            PARAM(oatpp::Int32, limit_count))
+
+        // The text is blanked as well as the row marked: a tombstone has no reason to keep what was said.
+        QUERY(markMessageDeleted,
+            "UPDATE message_data SET deleted_at = :deleted_at, text_message = '' "
+            "WHERE id = :message_id AND conversation_id = :conversation_id "
+            "  AND sender_steam_id = :sender_steam_id AND deleted_at IS NULL "
+            "RETURNING id AS value;",
+            PARAM(oatpp::Int64, message_id),
+            PARAM(oatpp::Int64, conversation_id),
+            PARAM(oatpp::Int64, sender_steam_id),
+            PARAM(oatpp::Int64, deleted_at))
+
+        // Distinguishes "already deleted" (idempotent success) from "not yours / not there" after an UPDATE that matched nothing.
+        QUERY(selectDeletedMessageOfSender,
+            "SELECT id AS value FROM message_data "
+            "WHERE id = :message_id AND conversation_id = :conversation_id "
+            "  AND sender_steam_id = :sender_steam_id AND deleted_at IS NOT NULL;",
+            PARAM(oatpp::Int64, message_id),
+            PARAM(oatpp::Int64, conversation_id),
+            PARAM(oatpp::Int64, sender_steam_id))
+
+        QUERY(selectDeletedSince,
+            "SELECT conversation_id, id AS message_id FROM message_data "
+            "WHERE deleted_at > :since "
+            "  AND conversation_id IN ("
+            "    SELECT conversation_id FROM chat WHERE member_a = :member_id OR member_b = :member_id "
+            "    UNION "
+            "    SELECT palette_id FROM members WHERE user_id = :member_id) "
+            "ORDER BY id ASC;",
+            PARAM(oatpp::Int64, since),
+            PARAM(oatpp::Int64, member_id))
 
         QUERY(isMember,
             "SELECT EXISTS ("

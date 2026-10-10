@@ -20,6 +20,7 @@ add_executable(picasso_storage_test
         storage/StorageTestDatabase.hpp
         storage/RepositoriesTest.cpp
         storage/ChatRepositoryTest.cpp
+        storage/ChatServiceTest.cpp
         storage/ContactRepositoryTest.cpp
         storage/SocialServiceTest.cpp
         storage/ConversationRepositoryTest.cpp
@@ -34,3 +35,17 @@ target_link_libraries(picasso_storage_test
         PRIVATE picasso_storage picasso_service oatpp::oatpp-postgresql Boost::unit_test_framework Threads::Threads)
 
 add_test(NAME picasso_storage_test COMMAND picasso_storage_test)
+
+# The WebSocket layer's own logic, with no socket: the outbound queue policy and the hub's fan-out.
+add_executable(picasso_transport_ws_test
+        transport/ws/WsTestMain.cpp
+        transport/ws/BoundedFrameQueueTest.cpp
+        transport/ws/ConnectionHubTest.cpp)
+
+target_include_directories(picasso_transport_ws_test
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+target_link_libraries(picasso_transport_ws_test
+        PRIVATE picasso_transport_ws Boost::unit_test_framework Threads::Threads)
+
+add_test(NAME picasso_transport_ws_test COMMAND picasso_transport_ws_test)

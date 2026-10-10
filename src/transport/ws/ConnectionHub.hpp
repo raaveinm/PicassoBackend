@@ -36,15 +36,17 @@ namespace picasso::transport::ws {
 
         void sendToAll(const std::vector<domain::SteamId>& steamIds, const std::string& frame) override;
 
+        void sendToAllExcept(
+            const std::vector<domain::SteamId>& steamIds,
+            const std::string& frame,
+            domain::ConnectionId except
+        ) override;
+
     private:
         /* Collects live connections under a shared lock; sending happens after it is released. */
         std::vector<std::shared_ptr<Outbound>> resolve(domain::SteamId steamId) const;
 
         mutable std::shared_mutex mutex_;
-        /*
-         * weak_ptr, not shared_ptr: a session that died without a clean onClose must
-         * not be kept alive by the registry that is supposed to forget it.
-         */
         std::unordered_map<domain::SteamId, std::vector<std::weak_ptr<Outbound>>> connections_;
     };
 } // namespace picasso::transport::ws
